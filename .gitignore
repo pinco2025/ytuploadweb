@@ -141,5 +141,20 @@ Thumbs.db
 # Logs
 *.log
 
+# Sensitive configuration files
 clients.json
 credentials.json
+discord_config.json
+
+# OAuth tokens and quota files
+tokens/
+*.pickle
+
+# Environment variables
+.env
+.env.local
+.env.production
+
+# API keys and secrets
+*_config.json
+secrets.json
