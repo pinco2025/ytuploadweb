@@ -140,3 +140,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+clients.json
+credentials.json
