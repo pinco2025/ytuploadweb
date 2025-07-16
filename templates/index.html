@@ -3,29 +3,84 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YouTube Shorts Uploader</title>
+    <title>YouTube Shorts Uploader v2</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <style>
+        .quota-bar {
+            height: 8px;
+            border-radius: 4px;
+            background: #e9ecef;
+            overflow: hidden;
+        }
+        .quota-fill {
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+        .quota-low { background: #dc3545; }
+        .quota-medium { background: #ffc107; }
+        .quota-high { background: #28a745; }
+        .client-card {
+            border: 2px solid #dee2e6;
+            transition: all 0.3s ease;
+        }
+        .client-card.active {
+            border-color: #007bff;
+            background-color: #f8f9fa;
+        }
+        .channel-select {
+            min-height: 100px;
+        }
+        .loading-spinner {
+            display: none;
+        }
+        .validation-error {
+            color: #dc3545;
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+        }
+        .validation-success {
+            color: #28a745;
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+        }
+        .form-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .url-counter {
+            font-size: 0.875rem;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+        .modal-backdrop {
+            z-index: 1040;
+        }
+        .modal {
+            z-index: 1050;
+        }
+    </style>
 </head>
 <body>
-    <div class="container mt-5">
+    <div class="container mt-4">
+        <!-- Navigation -->
+        <div class="mb-4 text-end">
+            <a href="/discord" class="btn btn-success">
+                <i class="fas fa-robot me-2"></i>Discord Jobs
+            </a>
+        </div>
+        
+        <!-- YouTube Uploader Content -->
         <div class="row justify-content-center">
-            <div class="col-md-8">
+            <div class="col-lg-10">
                 <div class="card">
-                    <div class="card-header">
-                        <h2 class="text-center">YouTube Shorts Uploader</h2>
-                        <!-- Statistics -->
-                        <div class="row mt-3">
-                            <div class="col-md-4">
-                                <div class="badge bg-primary">Session: {{ stats.session_uploads if stats else 0 }}</div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="badge bg-success">Total: {{ stats.total_uploads if stats else 0 }}</div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="badge bg-info">Clients: {{ stats.total_clients if stats else 0 }}</div>
-                            </div>
-                        </div>
+                    <div class="card-header bg-primary text-white">
+                        <h2 class="text-center mb-0">
+                            <i class="fas fa-video me-2"></i>YouTube Shorts Uploader v2
+                        </h2>
                     </div>
                     <div class="card-body">
                         <!-- Flash Messages -->
@@ -33,6 +88,7 @@
                             {% if messages %}
                                 {% for category, message in messages %}
                                     <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+                                        <i class="fas fa-{{ 'exclamation-triangle' if category == 'error' else 'check-circle' }} me-2"></i>
                                         {{ message }}
                                         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                                     </div>
@@ -40,66 +96,167 @@
                             {% endif %}
                         {% endwith %}
                         
-                        <form method="POST" id="uploadForm">
-                            <div class="mb-3">
-                                <label for="drive_link" class="form-label">Google Drive Link:</label>
-                                <input type="url" class="form-control" id="drive_link" name="drive_link" required
-                                       placeholder="https://drive.google.com/file/d/...">
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label for="title" class="form-label">Video Title:</label>
-                                <input type="text" class="form-control" id="title" name="title" required
-                                       placeholder="Enter video title">
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label for="description" class="form-label">Description:</label>
-                                <textarea class="form-control" id="description" name="description" rows="3"
-                                          placeholder="Enter video description"></textarea>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label for="hashtags" class="form-label">Hashtags:</label>
-                                <input type="text" class="form-control" id="hashtags" name="hashtags"
-                                       placeholder="#shorts #viral #youtube">
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label for="client_id" class="form-label">YouTube Client:</label>
-                                <select class="form-select" id="client_id" name="client_id" required>
+                        <!-- Client Selection -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h5><i class="fas fa-users me-2"></i>Select YouTube Client</h5>
+                                <div class="row" id="clientSelection">
                                     {% if clients %}
                                         {% for client in clients %}
-                                            <option value="{{ client.id }}">
-                                                {{ client.name }} ({{ client.upload_count }} uploads)
-                                            </option>
+                                            <div class="col-md-6 mb-3">
+                                                <div class="card client-card" data-client-id="{{ client.id }}">
+                                                    <div class="card-body">
+                                                        <div class="d-flex justify-content-between align-items-start">
+                                                            <div>
+                                                                <h6 class="card-title">{{ client.name }}</h6>
+                                                                <p class="card-text text-muted mb-2">
+                                                                    <i class="fas fa-upload me-1"></i>{{ client.upload_count }} uploads
+                                                                </p>
+                                                            </div>
+                                                            <button class="btn btn-sm btn-outline-primary select-client-btn" 
+                                                                    data-client-id="{{ client.id }}">
+                                                                <i class="fas fa-check me-1"></i>Select
+                                                            </button>
+                                                        </div>
+                                                        
+                                                        <!-- Quota Status -->
+                                                        {% if quota_status and client.id in quota_status %}
+                                                            {% set quota = quota_status[client.id] %}
+                                                            <div class="mt-3">
+                                                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                                                    <small class="text-muted">API Quota</small>
+                                                                    <small class="text-muted">
+                                                                        {{ quota.used_quota }}/{{ quota.daily_quota }}
+                                                                    </small>
+                                                                </div>
+                                                                <div class="quota-bar">
+                                                                    {% set usage_percent = (quota.used_quota / quota.daily_quota) * 100 %}
+                                                                    {% set quota_class = 'quota-high' if usage_percent < 70 else 'quota-medium' if usage_percent < 90 else 'quota-low' %}
+                                                                    <div class="quota-fill {{ quota_class }}" 
+                                                                         style="width: {{ usage_percent }}%"></div>
+                                                                </div>
+                                                                <small class="text-muted">
+                                                                    Remaining: {{ quota.remaining_quota }}
+                                                                </small>
+                                                            </div>
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                            </div>
                                         {% endfor %}
                                     {% else %}
-                                        <option value="client1">Default Client</option>
+                                        <div class="col-12">
+                                            <div class="alert alert-warning">
+                                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                                No YouTube clients configured. Please check your clients.json file.
+                                            </div>
+                                        </div>
                                     {% endif %}
-                                </select>
-                                <small class="form-text text-muted">Select which client credentials to use</small>
+                                </div>
                             </div>
-                            
-                            <div class="mb-3">
-                                <label for="channel" class="form-label">YouTube Channel:</label>
-                                <select class="form-select" id="channel" name="channel" required>
-                                    <option value="">Loading channels...</option>
-                                </select>
-                                <small class="form-text text-muted">Select which channel to upload to</small>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label for="privacy" class="form-label">Privacy:</label>
-                                <select class="form-select" id="privacy" name="privacy">
-                                    <option value="private">Private</option>
-                                    <option value="unlisted">Unlisted</option>
-                                    <option value="public">Public</option>
-                                </select>
-                            </div>
-                            
-                            <div class="text-center">
-                                <button type="submit" class="btn btn-primary">Upload to YouTube</button>
+                        </div>
+                        
+                        <!-- Upload Form -->
+                        <form method="POST" id="uploadForm">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <!-- Google Drive Link -->
+                                    <div class="mb-3">
+                                        <label for="drive_link" class="form-label">
+                                            <i class="fas fa-link me-1"></i>Google Drive Link
+                                        </label>
+                                        <input type="url" class="form-control" id="drive_link" name="drive_link" required
+                                               placeholder="https://drive.google.com/file/d/...">
+                                        <div class="validation-error" id="drive_link_error"></div>
+                                        <div class="validation-success" id="drive_link_success"></div>
+                                    </div>
+                                    
+                                    <!-- Video Title -->
+                                    <div class="mb-3">
+                                        <label for="title" class="form-label">
+                                            <i class="fas fa-heading me-1"></i>Video Title
+                                        </label>
+                                        <input type="text" class="form-control" id="title" name="title" required
+                                               placeholder="Enter video title" maxlength="100">
+                                        <div class="validation-error" id="title_error"></div>
+                                        <small class="form-text text-muted">
+                                            <span id="title_count">0</span>/100 characters
+                                        </small>
+                                    </div>
+                                    
+                                    <!-- Description -->
+                                    <div class="mb-3">
+                                        <label for="description" class="form-label">
+                                            <i class="fas fa-align-left me-1"></i>Description
+                                        </label>
+                                        <textarea class="form-control" id="description" name="description" rows="3"
+                                                  placeholder="Enter video description" maxlength="5000"></textarea>
+                                        <div class="validation-error" id="description_error"></div>
+                                        <small class="form-text text-muted">
+                                            <span id="description_count">0</span>/5000 characters
+                                        </small>
+                                    </div>
+                                    
+                                    <!-- Hashtags -->
+                                    <div class="mb-3">
+                                        <label for="hashtags" class="form-label">
+                                            <i class="fas fa-hashtag me-1"></i>Hashtags
+                                        </label>
+                                        <input type="text" class="form-control" id="hashtags" name="hashtags"
+                                               placeholder="#shorts #viral #youtube">
+                                        <div class="validation-error" id="hashtags_error"></div>
+                                        <small class="form-text text-muted">
+                                            Separate hashtags with spaces or commas (max 20 hashtags)
+                                        </small>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-4">
+                                    <!-- Channel Selection -->
+                                    <div class="mb-3">
+                                        <label for="channel" class="form-label">
+                                            <i class="fas fa-tv me-1"></i>YouTube Channel
+                                        </label>
+                                        <select class="form-select channel-select" id="channel" name="channel" required>
+                                            <option value="">Select a client first</option>
+                                        </select>
+                                        <div class="validation-error" id="channel_error"></div>
+                                        <small class="form-text text-muted">Select which channel to upload to</small>
+                                    </div>
+                                    
+                                    <!-- Privacy Setting -->
+                                    <div class="mb-3">
+                                        <label for="privacy" class="form-label">
+                                            <i class="fas fa-eye me-1"></i>Privacy
+                                        </label>
+                                        <select class="form-select" id="privacy" name="privacy">
+                                            <option value="public">
+                                                <i class="fas fa-globe me-1"></i>Public
+                                            </option>
+                                            <option value="unlisted">
+                                                <i class="fas fa-eye-slash me-1"></i>Unlisted
+                                            </option>
+                                            <option value="private">
+                                                <i class="fas fa-lock me-1"></i>Private
+                                            </option>
+                                        </select>
+                                    </div>
+                                    
+                                    <!-- Upload Button -->
+                                    <div class="d-grid">
+                                        <button type="submit" class="btn btn-primary btn-lg" id="uploadBtn">
+                                            <i class="fas fa-upload me-2"></i>Upload to YouTube
+                                        </button>
+                                    </div>
+                                    
+                                    <!-- Loading Spinner -->
+                                    <div class="text-center mt-3 loading-spinner" id="loadingSpinner">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Uploading...</span>
+                                        </div>
+                                        <p class="mt-2">Uploading video...</p>
+                                    </div>
+                                </div>
                             </div>
                         </form>
                     </div>
@@ -108,18 +265,89 @@
         </div>
     </div>
 
+
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Load channels when page loads
+        let currentClientId = null;
+        let currentChannelId = null;
+        
+        // Initialize page
         document.addEventListener('DOMContentLoaded', function() {
-            loadChannels();
+            initializePage();
+            setupEventListeners();
         });
         
-        function loadChannels() {
-            fetch('/api/channels')
+        function initializePage() {
+            // Set first client as active if available
+            const firstClient = document.querySelector('.client-card');
+            if (firstClient) {
+                const clientId = firstClient.dataset.clientId;
+                selectClient(clientId);
+            }
+        }
+        
+        function setupEventListeners() {
+            // Client selection
+            document.querySelectorAll('.select-client-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const clientId = this.dataset.clientId;
+                    selectClient(clientId);
+                });
+            });
+            
+            // Form validation
+            document.getElementById('drive_link').addEventListener('input', validateDriveLink);
+            document.getElementById('title').addEventListener('input', validateTitle);
+            document.getElementById('description').addEventListener('input', validateDescription);
+            document.getElementById('hashtags').addEventListener('input', validateHashtags);
+            
+            // Character counters
+            document.getElementById('title').addEventListener('input', updateTitleCounter);
+            document.getElementById('description').addEventListener('input', updateDescriptionCounter);
+            
+            // Form submission
+            document.getElementById('uploadForm').addEventListener('submit', handleFormSubmit);
+        }
+        
+        function selectClient(clientId) {
+            // Update UI
+            document.querySelectorAll('.client-card').forEach(card => {
+                card.classList.remove('active');
+            });
+            
+            const selectedCard = document.querySelector(`[data-client-id="${clientId}"]`);
+            if (selectedCard) {
+                selectedCard.classList.add('active');
+            }
+            
+            // Update buttons
+            document.querySelectorAll('.select-client-btn').forEach(btn => {
+                btn.innerHTML = '<i class="fas fa-check me-1"></i>Select';
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-outline-primary');
+            });
+            
+            const selectedBtn = document.querySelector(`[data-client-id="${clientId}"] .select-client-btn`);
+            if (selectedBtn) {
+                selectedBtn.innerHTML = '<i class="fas fa-check me-1"></i>Selected';
+                selectedBtn.classList.remove('btn-outline-primary');
+                selectedBtn.classList.add('btn-primary');
+            }
+            
+            currentClientId = clientId;
+            
+            // Load channels for this client
+            loadChannelsForClient(clientId);
+        }
+        
+        function loadChannelsForClient(clientId) {
+            const channelSelect = document.getElementById('channel');
+            channelSelect.innerHTML = '<option value="">Loading channels...</option>';
+            
+            fetch(`/api/channels/${clientId}`)
                 .then(response => response.json())
                 .then(data => {
-                    const channelSelect = document.getElementById('channel');
                     channelSelect.innerHTML = '';
                     
                     if (data.success && data.channels.length > 0) {
@@ -129,28 +357,145 @@
                             option.textContent = channel.title;
                             channelSelect.appendChild(option);
                         });
+                        
+                        // Select first channel by default
+                        if (data.channels.length > 0) {
+                            channelSelect.value = data.channels[0].id;
+                            currentChannelId = data.channels[0].id;
+                        }
                     } else {
                         channelSelect.innerHTML = '<option value="">No channels found</option>';
                     }
                 })
                 .catch(error => {
                     console.error('Error loading channels:', error);
-                    const channelSelect = document.getElementById('channel');
                     channelSelect.innerHTML = '<option value="">Error loading channels</option>';
                 });
         }
         
-        document.getElementById('uploadForm').addEventListener('submit', function(e) {
+        function validateDriveLink() {
+            const driveLink = document.getElementById('drive_link').value;
+            const errorDiv = document.getElementById('drive_link_error');
+            const successDiv = document.getElementById('drive_link_success');
+            
+            if (!driveLink) {
+                errorDiv.textContent = '';
+                successDiv.textContent = '';
+                return;
+            }
+            
+            fetch('/api/validate-link', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ drive_link: driveLink })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    errorDiv.textContent = '';
+                    successDiv.textContent = '✓ Valid Google Drive link';
+                } else {
+                    successDiv.textContent = '';
+                    errorDiv.textContent = data.error;
+                }
+            })
+            .catch(error => {
+                console.error('Error validating link:', error);
+                errorDiv.textContent = 'Error validating link';
+                successDiv.textContent = '';
+            });
+        }
+        
+        function validateTitle() {
+            const title = document.getElementById('title').value;
+            const errorDiv = document.getElementById('title_error');
+            
+            if (!title) {
+                errorDiv.textContent = '';
+                return;
+            }
+            
+            if (title.length > 100) {
+                errorDiv.textContent = 'Title must be 100 characters or less';
+            } else {
+                errorDiv.textContent = '';
+            }
+        }
+        
+        function validateDescription() {
+            const description = document.getElementById('description').value;
+            const errorDiv = document.getElementById('description_error');
+            
+            if (description.length > 5000) {
+                errorDiv.textContent = 'Description must be 5000 characters or less';
+            } else {
+                errorDiv.textContent = '';
+            }
+        }
+        
+        function validateHashtags() {
+            const hashtags = document.getElementById('hashtags').value;
+            const errorDiv = document.getElementById('hashtags_error');
+            
+            if (!hashtags) {
+                errorDiv.textContent = '';
+                return;
+            }
+            
+            const tags = hashtags.split(/[,\s]+/).filter(tag => tag.trim());
+            if (tags.length > 20) {
+                errorDiv.textContent = 'Maximum 20 hashtags allowed';
+            } else {
+                errorDiv.textContent = '';
+            }
+        }
+        
+        function updateTitleCounter() {
+            const title = document.getElementById('title').value;
+            document.getElementById('title_count').textContent = title.length;
+        }
+        
+        function updateDescriptionCounter() {
+            const description = document.getElementById('description').value;
+            document.getElementById('description_count').textContent = description.length;
+        }
+        
+        function handleFormSubmit(e) {
             e.preventDefault();
             
+            // Validate required fields
+            if (!currentClientId) {
+                alert('Please select a YouTube client');
+                return;
+            }
+            
+            const channelId = document.getElementById('channel').value;
+            if (!channelId) {
+                alert('Please select a YouTube channel');
+                return;
+            }
+            
+            // Add client_id to form data
+            const clientIdInput = document.createElement('input');
+            clientIdInput.type = 'hidden';
+            clientIdInput.name = 'client_id';
+            clientIdInput.value = currentClientId;
+            e.target.appendChild(clientIdInput);
+            
             // Show loading state
-            const submitBtn = this.querySelector('button[type="submit"]');
-            submitBtn.innerHTML = 'Uploading...';
-            submitBtn.disabled = true;
+            const uploadBtn = document.getElementById('uploadBtn');
+            const loadingSpinner = document.getElementById('loadingSpinner');
+            
+            uploadBtn.disabled = true;
+            uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Uploading...';
+            loadingSpinner.style.display = 'block';
             
             // Submit the form
-            this.submit();
-        });
+            e.target.submit();
+        }
     </script>
 </body>
 </html>
+</html> 

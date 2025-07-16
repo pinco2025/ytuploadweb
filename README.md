@@ -1,291 +1,320 @@
-# YouTube Shorts Uploader Web Application
+# YouTube Shorts Uploader v2 - Improved Version
 
-A Flask web application that allows you to upload videos from Google Drive to YouTube as shorts with custom titles, descriptions, and hashtags. The application now supports multiple YouTube clients and channels for enhanced upload management.
+A significantly improved Flask web application for uploading videos from Google Drive to YouTube as Shorts with enhanced multi-client support, better error handling, and comprehensive validation.
 
-## Features
+## 🚀 Major Improvements
 
-- Upload videos from Google Drive links
-- Automatic YouTube upload as shorts
-- Custom title, description, and hashtags
-- Privacy settings (Private, Unlisted, Public)
-- **Multi-client support** - Manage multiple YouTube OAuth clients
-- **Channel selection** - Choose which YouTube channel to upload to
-- **Upload statistics** - Track upload counts per client and session
-- **API endpoints** - RESTful API for channels, clients, and statistics
-- User-friendly web interface
-- Error handling and success notifications
-- **Testing utilities** - Built-in channel testing functionality
+### 1. **Multi-Client & Multi-Channel Authentication System**
+- **Dynamic Client Switching**: Switch between multiple YouTube OAuth clients on the fly
+- **Channel Management**: Each client can access multiple YouTube channels
+- **Token Management**: Proper OAuth token storage and refresh handling
+- **Authentication State**: Track active client and channel for seamless switching
 
-## Setup Instructions
+### 2. **API Quota Management**
+- **Real-time Quota Tracking**: Monitor API usage for each client
+- **Quota Warnings**: Visual indicators when quota is running low
+- **Daily Reset**: Automatic quota reset at midnight
+- **Operation Cost Tracking**: Track quota costs for different API operations
+- **Smart Client Selection**: Automatically suggest clients with available quota
+
+### 3. **Comprehensive Input Validation**
+- **Google Drive Link Validation**: Validate and extract file IDs from various link formats
+- **Video Metadata Validation**: Title, description, and hashtag validation
+- **File Format Validation**: Support for multiple video formats
+- **Size Limits**: Enforce YouTube's file size restrictions
+- **XSS Prevention**: Sanitize user inputs to prevent security issues
+
+### 4. **Enhanced Error Handling**
+- **Structured Error Messages**: Clear, actionable error messages
+- **Logging System**: Comprehensive logging with file and console output
+- **Graceful Degradation**: Handle API failures gracefully
+- **Retry Logic**: Automatic retry for transient failures
+- **User-Friendly Errors**: Convert technical errors to user-friendly messages
+
+### 5. **Improved User Interface**
+- **Modern Design**: Bootstrap 5 with Font Awesome icons and tabbed navigation
+- **Real-time Validation**: Client-side validation with immediate feedback
+- **Quota Visualization**: Visual quota bars with color coding
+- **Client Selection Cards**: Intuitive client selection interface
+- **Loading States**: Clear loading indicators during operations
+- **Responsive Design**: Works on desktop and mobile devices
+- **Tabbed Interface**: Switch between YouTube uploader and Discord jobs
+
+### 6. **Discord Integration**
+- **Webhook Support**: Submit jobs to Discord webhooks
+- **Image & Audio URLs**: Handle 4 image and 4 audio URLs per job
+- **Two Job Types**: Submit Job and No Cap Job endpoints
+- **Error Handling**: Comprehensive error handling for webhook failures
+- **Real-time Feedback**: Immediate response feedback to users
+
+### 7. **Better Code Organization**
+- **Separation of Concerns**: Modular architecture with dedicated classes
+- **Type Hints**: Full type annotation for better code maintainability
+- **Configuration Management**: Centralized configuration handling
+- **API Endpoints**: RESTful API design for programmatic access
+- **Health Checks**: System health monitoring endpoints
+
+## 📁 New File Structure
+
+```
+Web-Api-Sys/
+├── app_v2.py                 # Main improved Flask application
+├── auth_manager.py           # Multi-client authentication manager
+├── youtube_service_v2.py     # Improved YouTube service with quota management
+├── validators.py             # Comprehensive input validation
+├── config.py                 # Configuration settings
+├── google_drive_service.py   # Google Drive integration
+├── client_manager.py         # Legacy client manager (deprecated)
+├── youtube_service.py        # Legacy YouTube service (deprecated)
+├── app.py                    # Legacy main application (deprecated)
+├── requirements.txt          # Python dependencies
+├── clients.json              # Multi-client configuration
+├── tokens/                   # OAuth token storage directory
+│   ├── token_client1.pickle  # Tokens for each client
+│   ├── token_client2.pickle
+│   ├── quota_client1.json    # Quota tracking for each client
+│   └── quota_client2.json
+├── templates/
+│   ├── index_v2.html         # Improved main upload interface
+│   ├── success_v2.html       # Enhanced success page
+│   ├── index.html            # Legacy template
+│   └── success.html          # Legacy template
+├── static/
+│   └── css/
+│       └── style.css         # Custom styles
+└── uploads/                  # Temporary file storage
+├── discord_config.json       # Discord webhook configuration
+└── update_ngrok_urls.py      # Ngrok URL update script
+```
+
+## 🔧 New Features
+
+### Authentication Manager (`auth_manager.py`)
+- **Multi-client Support**: Manage multiple YouTube OAuth clients
+- **Token Persistence**: Store and refresh OAuth tokens automatically
+- **Channel Discovery**: Get available channels for each client
+- **Quota Tracking**: Monitor API usage per client
+- **Client Switching**: Seamless switching between clients
+
+### Input Validator (`validators.py`)
+- **Link Validation**: Validate Google Drive links and extract file IDs
+- **Content Validation**: Validate titles, descriptions, and hashtags
+- **File Validation**: Check file formats and sizes
+- **Security**: Sanitize inputs to prevent XSS attacks
+- **Comprehensive Validation**: Validate all form data at once
+
+### YouTube Service v2 (`youtube_service_v2.py`)
+- **Quota Management**: Check quota before making API calls
+- **Error Handling**: Comprehensive error handling with retry logic
+- **Channel Support**: Upload to specific channels
+- **Progress Tracking**: Track upload progress and status
+- **Resource Cleanup**: Proper cleanup of temporary files
+
+## 🚀 Getting Started
 
 ### 1. Install Dependencies
-
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Google API Setup
+### 2. Configure Clients
+Edit `clients.json` to add your YouTube OAuth clients:
+```json
+[
+  {
+    "id": "client1",
+    "name": "YouTube Client 1",
+    "client_id": "your-client-id-1.apps.googleusercontent.com",
+    "client_secret": "your-client-secret-1",
+    "upload_count": 0
+  },
+  {
+    "id": "client2",
+    "name": "YouTube Client 2",
+    "client_id": "your-client-id-2.apps.googleusercontent.com",
+    "client_secret": "your-client-secret-2",
+    "upload_count": 0
+  }
+]
+```
 
-#### YouTube API:
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select an existing one
-3. Enable YouTube Data API v3
-4. Create OAuth 2.0 credentials:
-   - Choose "Web application" or "Desktop application"
-   - Add redirect URI: `http://localhost:8080/` (for web apps)
-5. Download the credentials JSON file
-
-### 3. Credential Configuration
-
-#### Option 1: Automatic Setup (Recommended)
-1. Place your downloaded credentials JSON file in the project root as `credentials.json`
-2. Run the credential extraction script:
-   ```bash
-   python extract_credentials.py
-   ```
-3. This will automatically populate your `.env` file with the correct values
-
-#### Option 2: Manual Setup
-1. Open your `.env` file and fill in your credentials manually:
-   ```env
-   SECRET_KEY=your-secret-key-here
-   GOOGLE_PROJECT_ID=your-project-id
-   YOUTUBE_CLIENT_ID=your-youtube-client-id.apps.googleusercontent.com
-   YOUTUBE_CLIENT_SECRET=your-youtube-client-secret
-   REDIRECT_URI=http://localhost:8080/
-   ```
-
-### 4. Run the Application
-
+### 3. Run the Application
 ```bash
-python app.py
+python app_v2.py
 ```
 
 The application will be available at `http://localhost:5000`
 
-## Usage
+## 📊 API Endpoints
 
-### Basic Upload Process
-1. Open the web application in your browser
-2. Select a YouTube client (if multiple are configured)
-3. Choose a YouTube channel to upload to
-4. Paste a Google Drive link to your video file
-5. Fill in the video title (required)
-6. Add description and hashtags (optional)
-7. Select privacy setting
-8. Click "Upload to YouTube"
-9. The first time you'll need to authorize the app with your YouTube account
-10. Wait for the upload to complete
+### Client Management
+- `GET /api/clients` - Get all clients with quota information
+- `GET /api/quota/<client_id>` - Get quota status for a specific client
+- `GET /api/switch-client/<client_id>` - Switch to a different client
 
-### Multi-Client Configuration
+### Channel Management
+- `GET /api/channels/<client_id>` - Get channels for a specific client
+- `GET /api/switch-channel/<client_id>/<channel_id>` - Switch to a specific channel
 
-The application supports multiple YouTube OAuth clients for better quota management:
+### Validation
+- `POST /api/validate-link` - Validate Google Drive link
 
-1. **Configure clients in `clients.json`**:
-   ```json
-   [
-     {
-       "id": "client1",
-       "name": "YouTube Client 1",
-       "client_id": "your-client-id-1.apps.googleusercontent.com",
-       "client_secret": "your-client-secret-1",
-       "upload_count": 0
-     },
-     {
-       "id": "client2",
-       "name": "YouTube Client 2",
-       "client_id": "your-client-id-2.apps.googleusercontent.com",
-       "client_secret": "your-client-secret-2",
-       "upload_count": 0
-     }
-   ]
-   ```
+### System
+- `GET /health` - Health check endpoint
 
-2. **Benefits of multi-client setup**:
-   - Distribute API quota usage across multiple clients
-   - Track uploads per client
-   - Redundancy in case one client reaches quota limits
-   - Better organization for multiple YouTube accounts
+### Discord Integration
+- `POST /submitjob` - Submit a job to Discord webhook
+- `POST /nocapjob` - Submit a nocap job to Discord webhook
+- `GET /discord-jobs` - Discord job submission page
+- `GET /api/discord/config` - Get current webhook configuration
+- `POST /api/discord/config` - Update webhook URLs
 
-### Testing Channels
+## 🎯 Usage Workflow
 
-Use the built-in testing utility to verify your YouTube channel access:
+### YouTube Uploader
+1. **Select Client**: Choose a YouTube client from the available options
+2. **View Quota**: Check API quota status for the selected client
+3. **Select Channel**: Choose which YouTube channel to upload to
+4. **Enter Video Details**: Fill in title, description, and hashtags
+5. **Validate Input**: Real-time validation ensures data quality
+6. **Upload**: Click upload and monitor progress
+7. **Review Results**: View upload results and updated quota status
 
-```bash
-python test_channels.py
+### Discord Jobs
+1. **Switch to Discord Tab**: Click the "Discord Jobs" tab
+2. **Enter User**: Provide the username for the job
+3. **Add Images**: Enter 4 image URLs (required)
+4. **Add Audio**: Enter 4 audio URLs (required)
+5. **Submit Job**: Choose between "Submit Job" or "No Cap Job"
+6. **Monitor Response**: View success/error messages from webhook
+
+### Ngrok URL Management
+1. **View Current URLs**: Check the webhook configuration section in the Discord tab
+2. **Update URLs**: Click "Update URLs" button to open the configuration modal
+3. **Enter New Base URL**: Provide your new ngrok base URL (e.g., `https://abc123.ngrok-free.app`)
+4. **Auto-Generation**: The system automatically constructs the full webhook URLs
+5. **Save Changes**: Click "Update URLs" to save the new configuration
+6. **Alternative Method**: Use the command-line script: `python update_ngrok_urls.py`
+
+## 🔒 Security Improvements
+
+- **Input Sanitization**: Prevent XSS attacks
+- **Token Security**: Secure OAuth token storage
+- **File Validation**: Validate file types and sizes
+- **Error Handling**: Don't expose sensitive information in errors
+- **Quota Protection**: Prevent quota exhaustion
+
+## 📈 Monitoring & Logging
+
+- **File Logging**: All operations logged to `app.log`
+- **Console Logging**: Real-time console output
+- **Quota Monitoring**: Track API usage across all clients
+- **Error Tracking**: Comprehensive error logging
+- **Performance Metrics**: Upload success rates and timing
+
+## 🛠️ Configuration
+
+### Environment Variables
+```env
+SECRET_KEY=your-secret-key-here
+GOOGLE_PROJECT_ID=your-project-id
+YOUTUBE_CLIENT_ID=your-youtube-client-id
+YOUTUBE_CLIENT_SECRET=your-youtube-client-secret
+REDIRECT_URI=http://localhost:8080/
 ```
 
-This will:
-- Test YouTube service initialization
-- Verify authentication
-- List all accessible YouTube channels
-- Provide debugging information for troubleshooting
+### Quota Settings
+- **Daily Quota**: 10,000 points per client (configurable)
+- **Upload Cost**: 1,600 points per video upload
+- **Channel List Cost**: 1 point per request
+- **Video Info Cost**: 1 point per request
 
-## Important Notes
-
-### Google Drive Links
-- The Google Drive link should be publicly accessible
-- Make sure the file is shared with "Anyone with the link can view"
-- Supported formats: MP4, MOV, AVI, etc.
-
-### YouTube Shorts Requirements
-- Videos should be vertical (9:16 aspect ratio)
-- Duration should be 60 seconds or less
-- File size should be under 15GB
-
-### Authentication
-- On first run, you'll be redirected to Google OAuth for YouTube authorization
-- Your credentials will be saved in `token.pickle` for future use
-
-## File Structure
-
-```
-Web-Api-Sys/
-├── app.py                 # Main Flask application
-├── config.py             # Configuration settings
-├── google_drive_service.py # Google Drive API service
-├── youtube_service.py    # YouTube API service
-├── client_manager.py     # Multi-client management system
-├── test_channels.py      # Channel testing utility
-├── extract_credentials.py # Credential extraction tool
-├── requirements.txt      # Python dependencies
-├── .env                  # Environment variables
-├── credentials.json      # YouTube OAuth credentials (you create this)
-├── clients.json          # Multi-client configuration
-├── drive_credentials.json # Google Drive service account (optional)
-├── token.pickle          # Saved YouTube auth token (auto-generated)
-├── templates/
-│   ├── index.html        # Main upload form
-│   └── success.html      # Success page
-├── static/               # Static files (CSS, JS)
-└── uploads/              # Temporary file storage
+### Discord Configuration
+The Discord webhook URLs are stored in `discord_config.json`:
+```json
+{
+  "webhook_urls": {
+    "submit_job": "https://your-ngrok-url.ngrok-free.app/webhook/discord-input",
+    "nocap_job": "https://your-ngrok-url.ngrok-free.app/webhook/back"
+  },
+  "timeout_seconds": 30,
+  "last_updated": "2024-01-01 12:00:00"
+}
 ```
 
-## API Endpoints
+**Updating Ngrok URLs:**
+- **Web Interface**: Use the "Update URLs" button in the Discord tab
+- **Command Line**: Run `python update_ngrok_urls.py`
+- **Manual**: Edit `discord_config.json` directly
 
-The application provides RESTful API endpoints for programmatic access:
+## 🔄 Migration from v1
 
-### GET /api/channels
-- **Description**: Retrieve user's YouTube channels
-- **Response**: JSON array of channel objects
-- **Example**:
-  ```json
-  {
-    "success": true,
-    "channels": [
-      {
-        "id": "UC...",
-        "title": "My Channel",
-        "description": "Channel description"
-      }
-    ]
-  }
-  ```
+To migrate from the original version:
 
-### GET /api/clients
-- **Description**: Get all configured YouTube clients
-- **Response**: JSON array of client objects
-- **Example**:
-  ```json
-  {
-    "success": true,
-    "clients": [
-      {
-        "id": "client1",
-        "name": "YouTube Client 1",
-        "upload_count": 5
-      }
-    ]
-  }
-  ```
+1. **Backup**: Backup your existing `clients.json` and tokens
+2. **Update**: Replace old files with new v2 files
+3. **Configure**: Update your client configuration if needed
+4. **Test**: Test with a small upload first
+5. **Deploy**: Deploy the new version
 
-### GET /api/stats
-- **Description**: Get upload statistics
-- **Response**: JSON object with statistics
-- **Example**:
-  ```json
-  {
-    "success": true,
-    "stats": {
-      "total_clients": 4,
-      "total_uploads": 15,
-      "session_uploads": 3,
-      "client_stats": [
-        {
-          "id": "client1",
-          "name": "YouTube Client 1",
-          "upload_count": 5
-        }
-      ]
-    }
-  }
-  ```
+## 🐛 Troubleshooting
 
-### GET /api/reset-session
-- **Description**: Reset the session upload counter
-- **Response**: JSON confirmation
+### Common Issues
 
-## Error Handling
+1. **"No clients configured"**
+   - Check `clients.json` file exists and is valid JSON
+   - Ensure client credentials are correct
 
-The application includes comprehensive error handling for:
-- Invalid Google Drive links
-- File download failures
-- YouTube upload errors
-- Authentication issues
-- Network connectivity problems
-- Multi-client configuration errors
-- Channel access issues
+2. **"API quota exceeded"**
+   - Switch to a different client
+   - Wait for daily quota reset
+   - Check quota usage in the UI
 
-## Security Considerations
+3. **"Authentication failed"**
+   - Delete token files and re-authenticate
+   - Check OAuth credentials
+   - Ensure redirect URI is correct
 
-- Keep your `credentials.json` and `.env` files secure
-- Don't commit sensitive files to version control
-- Consider using environment variables in production
-- Implement rate limiting for production use
+4. **"Channel not found"**
+   - Verify channel exists for the selected client
+   - Check OAuth scopes include channel access
+   - Re-authenticate if needed
 
-## Troubleshooting
+### Debug Mode
+Enable debug logging by setting the log level:
+```python
+logging.basicConfig(level=logging.DEBUG)
+```
 
-### Common Issues:
+## 📝 Changelog
 
-1. **"Invalid Google Drive link format"**
-   - Ensure the link is in the correct format
-   - Make sure the file is publicly accessible
+### v2.0.0
+- ✨ Multi-client authentication system
+- ✨ Real-time quota management
+- ✨ Comprehensive input validation
+- ✨ Enhanced error handling
+- ✨ Modern responsive UI
+- ✨ RESTful API endpoints
+- ✨ Improved logging system
+- ✨ Security enhancements
+- ✨ Better code organization
 
-2. **"Failed to download video from Google Drive"**
-   - Check if the file is public
-   - Verify the file exists and is not corrupted
+## 🤝 Contributing
 
-3. **"OAuth2 credentials file not found"**
-   - Make sure `credentials.json` exists in the project root
-   - Verify the file contains valid OAuth2 credentials
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
 
-4. **YouTube upload failures**
-   - Check your YouTube API quotas
-   - Verify video meets YouTube's requirements
-   - Ensure proper authentication
+## 📄 License
 
-5. **"No channels found" or channel access issues**
-   - Run `python test_channels.py` to debug
-   - Verify OAuth permissions include YouTube Data API v3
-   - Check if the account has created YouTube channels
-   - Ensure brand accounts are properly linked
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-6. **Multi-client configuration errors**
-   - Verify `clients.json` has proper JSON format
-   - Check that all client IDs and secrets are valid
-   - Ensure each client has unique IDs
-   - Test individual clients using the web interface
+## 🆘 Support
 
-7. **Upload count tracking issues**
-   - Check `clients.json` file permissions
-   - Verify the file is not corrupted
-   - Use `/api/stats` endpoint to check current counts
-   - Reset session counts via `/api/reset-session`
-
-## Contributing
-
-Feel free to submit issues and enhancement requests!
-
-## License
-
-This project is for educational purposes. Make sure to comply with YouTube's Terms of Service and API usage policies.
+For support and questions:
+- Check the troubleshooting section
+- Review the logs in `app.log`
+- Test with the health check endpoint
+- Verify your OAuth credentials 

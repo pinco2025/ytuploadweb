@@ -1,0 +1,8 @@
+{
+  "webhook_urls": {
+    "submit_job": "https://a2739fa83b79.ngrok-free.app/webhook/discord-input",
+    "nocap_job": "https://a2739fa83b79.ngrok-free.app/webhook/back"
+  },
+  "timeout_seconds": 30,
+  "last_updated": "2024-01-01"
+} 

@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-Helper script to extract credentials from Google OAuth2 JSON file
-and populate the .env file automatically.
+Helper script to extract credentials from Google OAuth2 JSON files
+and populate both .env file and clients.json for multi-client support.
 """
 
 import json
 import os
 import sys
+import glob
 from pathlib import Path
 
 def extract_credentials_from_json(json_file_path):
@@ -45,6 +46,26 @@ def extract_credentials_from_json(json_file_path):
     except Exception as e:
         print(f"Error reading credentials: {e}")
         return None
+
+def find_credential_files():
+    """Find all credential JSON files in the current directory."""
+    credential_files = []
+    
+    # Look for common credential file patterns
+    patterns = [
+        'credentials*.json',
+        'client_secret*.json',
+        '*_credentials.json',
+        'oauth2_credentials*.json'
+    ]
+    
+    for pattern in patterns:
+        credential_files.extend(glob.glob(pattern))
+    
+    # Remove duplicates and sort
+    credential_files = sorted(list(set(credential_files)))
+    
+    return credential_files
 
 def update_env_file(credentials):
     """Update .env file with extracted credentials."""
@@ -121,6 +142,8 @@ def main():
         print("\n✅ Done! Your .env file has been updated with the credentials.")
         print("\n🚀 You can now run your Flask application with:")
         print("   python app.py")
+        print("\n📝 Note: You may also need to update your clients.json file manually")
+        print("   or use the new multi-client authentication system.")
     else:
         print("❌ Failed to extract credentials. Please check your JSON file.")
 

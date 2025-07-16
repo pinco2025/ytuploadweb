@@ -3,78 +3,154 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Upload Successful - YouTube Shorts Uploader</title>
+    <title>Upload Success - YouTube Shorts Uploader v2</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .success-card {
+            border: 2px solid #28a745;
+            background: linear-gradient(135deg, #f8fff9 0%, #e8f5e8 100%);
+        }
+        .quota-info {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        .quota-bar {
+            height: 8px;
+            border-radius: 4px;
+            background: #e9ecef;
+            overflow: hidden;
+            margin: 8px 0;
+        }
+        .quota-fill {
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+        .quota-low { background: #dc3545; }
+        .quota-medium { background: #ffc107; }
+        .quota-high { background: #28a745; }
+        .video-link {
+            background: #fff;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .copy-btn {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .copy-btn:hover {
+            transform: scale(1.05);
+        }
+    </style>
 </head>
 <body>
     <div class="container mt-5">
         <div class="row justify-content-center">
-            <div class="col-md-8">
-                <div class="card">
-                    <div class="card-header success-header">
-                        <h2 class="text-center mb-0">Upload Successful!</h2>
+            <div class="col-lg-8">
+                <div class="card success-card">
+                    <div class="card-header bg-success text-white text-center">
+                        <h2 class="mb-0">
+                            <i class="fas fa-check-circle me-2"></i>Upload Successful!
+                        </h2>
                     </div>
-                    <div class="card-body text-center">
-                        <div class="alert alert-success" role="alert">
-                            <h4 class="alert-heading">🎉 Video Uploaded Successfully!</h4>
-                            <p class="mb-0">Your video has been uploaded to YouTube as a short.</p>
+                    <div class="card-body">
+                        <div class="text-center mb-4">
+                            <i class="fas fa-video fa-3x text-success mb-3"></i>
+                            <h4>Your video has been uploaded to YouTube!</h4>
+                            <p class="text-muted">Video uploaded using client: <strong>{{ client_name }}</strong></p>
                         </div>
                         
-                        <div class="mt-4 video-details">
-                            <h5>Video Details:</h5>
-                            <p><strong>Video ID:</strong> {{ video_id }}</p>
-                            <p><strong>Video URL:</strong> <a href="{{ video_url }}" target="_blank">{{ video_url }}</a></p>
-                            <p><strong>Client Used:</strong> {{ client_name }}</p>
+                        <!-- Video Information -->
+                        <div class="video-link">
+                            <div class="row align-items-center">
+                                <div class="col-md-8">
+                                    <h6><i class="fas fa-link me-2"></i>Video URL</h6>
+                                    <p class="mb-0 text-break">{{ video_url }}</p>
+                                    <small class="text-muted">Video ID: {{ video_id }}</small>
+                                </div>
+                                <div class="col-md-4 text-end">
+                                    <button class="btn btn-outline-primary copy-btn" 
+                                            onclick="copyToClipboard('{{ video_url }}')"
+                                            title="Copy URL to clipboard">
+                                        <i class="fas fa-copy me-1"></i>Copy URL
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                         
-                        {% if stats %}
-                        <div class="mt-4">
-                            <h5>Upload Statistics:</h5>
+                        <!-- Quota Information -->
+                        {% if quota_status %}
+                        <div class="quota-info">
+                            <h6><i class="fas fa-chart-bar me-2"></i>API Quota Status</h6>
                             <div class="row">
-                                <div class="col-md-4">
-                                    <div class="stats-card">
-                                        <h6>Session Uploads</h6>
-                                        <h3>{{ stats.session_uploads }}</h3>
-                                    </div>
+                                <div class="col-md-6">
+                                    <p class="mb-1">
+                                        <strong>Used:</strong> {{ quota_status.used_quota }} / {{ quota_status.daily_quota }}
+                                    </p>
+                                    <p class="mb-1">
+                                        <strong>Remaining:</strong> {{ quota_status.remaining_quota }}
+                                    </p>
                                 </div>
-                                <div class="col-md-4">
-                                    <div class="stats-card">
-                                        <h6>Total Uploads</h6>
-                                        <h3>{{ stats.total_uploads }}</h3>
-                                    </div>
-                                </div>
-                                <div class="col-md-4">
-                                    <div class="stats-card">
-                                        <h6>Active Clients</h6>
-                                        <h3>{{ stats.total_clients }}</h3>
-                                    </div>
+                                <div class="col-md-6">
+                                    <p class="mb-1">
+                                        <strong>Usage:</strong> {{ "%.1f"|format(quota_status.usage_percentage) }}%
+                                    </p>
+                                    <p class="mb-1">
+                                        <strong>Last Reset:</strong> {{ quota_status.last_reset.split('T')[0] }}
+                                    </p>
                                 </div>
                             </div>
                             
-                            <div class="mt-3">
-                                <h6>Client Statistics:</h6>
-                                <div class="row">
-                                    {% for client_stat in stats.client_stats %}
-                                    <div class="col-md-6">
-                                        <div class="client-card mb-2">
-                                            <h6>{{ client_stat.name }}</h6>
-                                            <p>{{ client_stat.upload_count }} uploads</p>
-                                        </div>
-                                    </div>
-                                    {% endfor %}
-                                </div>
+                            <div class="quota-bar">
+                                {% set usage_percent = quota_status.usage_percentage %}
+                                {% set quota_class = 'quota-high' if usage_percent < 70 else 'quota-medium' if usage_percent < 90 else 'quota-low' %}
+                                <div class="quota-fill {{ quota_class }}" 
+                                     style="width: {{ usage_percent }}%"></div>
                             </div>
+                            
+                            {% if quota_status.usage_percentage > 90 %}
+                                <div class="alert alert-warning mt-2">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    <strong>Warning:</strong> API quota is running low. Consider switching to another client.
+                                </div>
+                            {% elif quota_status.usage_percentage > 70 %}
+                                <div class="alert alert-info mt-2">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    <strong>Info:</strong> API quota usage is moderate.
+                                </div>
+                            {% else %}
+                                <div class="alert alert-success mt-2">
+                                    <i class="fas fa-check-circle me-2"></i>
+                                    <strong>Good:</strong> API quota usage is healthy.
+                                </div>
+                            {% endif %}
                         </div>
                         {% endif %}
                         
+                        <!-- Action Buttons -->
+                        <div class="text-center mt-4">
+                            <a href="/" class="btn btn-primary me-2">
+                                <i class="fas fa-plus me-1"></i>Upload Another Video
+                            </a>
+                            <a href="{{ video_url }}" target="_blank" class="btn btn-outline-success">
+                                <i class="fas fa-external-link-alt me-1"></i>View on YouTube
+                            </a>
+                        </div>
+                        
+                        <!-- Tips -->
                         <div class="mt-4">
-                            <a href="{{ video_url }}" class="btn btn-primary me-2" target="_blank">
-                                Watch on YouTube
-                            </a>
-                            <a href="{{ url_for('index') }}" class="btn btn-secondary">
-                                Upload Another Video
-                            </a>
+                            <div class="alert alert-info">
+                                <h6><i class="fas fa-lightbulb me-2"></i>Tips for YouTube Shorts</h6>
+                                <ul class="mb-0">
+                                    <li>Videos should be vertical (9:16 aspect ratio)</li>
+                                    <li>Duration should be 60 seconds or less</li>
+                                    <li>Use relevant hashtags to increase discoverability</li>
+                                    <li>Consider uploading during peak viewing hours</li>
+                                </ul>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -83,5 +159,33 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(function() {
+                // Show success message
+                const btn = event.target.closest('.copy-btn');
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check me-1"></i>Copied!';
+                btn.classList.remove('btn-outline-primary');
+                btn.classList.add('btn-success');
+                
+                setTimeout(function() {
+                    btn.innerHTML = originalText;
+                    btn.classList.remove('btn-success');
+                    btn.classList.add('btn-outline-primary');
+                }, 2000);
+            }).catch(function(err) {
+                console.error('Failed to copy text: ', err);
+                alert('Failed to copy URL to clipboard');
+            });
+        }
+        
+        // Auto-refresh quota status every 30 seconds
+        setInterval(function() {
+            // You could add an API call here to refresh quota status
+            // For now, we'll just show a message
+            console.log('Quota status can be refreshed here');
+        }, 30000);
+    </script>
 </body>
-</html>
+</html> 

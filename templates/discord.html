@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discord Job Submission</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .form-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .url-counter {
+            font-size: 0.875rem;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+        .loading-spinner {
+            display: none;
+        }
+        .modal-backdrop {
+            z-index: 1040;
+        }
+        .modal {
+            z-index: 1050;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <!-- Navigation -->
+        <div class="mb-4">
+            <a href="/" class="btn btn-outline-primary">
+                <i class="fas fa-arrow-left me-2"></i>Back to YouTube Uploader
+            </a>
+        </div>
+        
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h2 class="text-center mb-0">
+                            <i class="fas fa-robot me-2"></i>Discord Job Submission
+                        </h2>
+                    </div>
+                    <div class="card-body">
+                        <!-- Flash Messages -->
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                                {% for category, message in messages %}
+                                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+                                        <i class="fas fa-{{ 'exclamation-triangle' if category == 'error' else 'check-circle' }} me-2"></i>
+                                        {{ message }}
+                                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
+                        
+                        <form id="discordJobForm">
+                            <!-- User Input -->
+                            <div class="form-section mb-4">
+                                <h5><i class="fas fa-user me-2"></i>User Information</h5>
+                                <div class="mb-3">
+                                    <label for="discord_user" class="form-label">Username</label>
+                                    <input type="text" class="form-control" id="discord_user" name="user" required
+                                           placeholder="Enter username">
+                                </div>
+                            </div>
+                            
+                            <!-- Images Section -->
+                            <div class="form-section mb-4">
+                                <h5><i class="fas fa-images me-2"></i>Image URLs (4 required)</h5>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="discord_image1" class="form-label">Image 1</label>
+                                            <input type="url" class="form-control" id="discord_image1" name="image1" required
+                                                   placeholder="https://example.com/image1.jpg">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="discord_image2" class="form-label">Image 2</label>
+                                            <input type="url" class="form-control" id="discord_image2" name="image2" required
+                                                   placeholder="https://example.com/image2.jpg">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="discord_image3" class="form-label">Image 3</label>
+                                            <input type="url" class="form-control" id="discord_image3" name="image3" required
+                                                   placeholder="https://example.com/image3.jpg">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="discord_image4" class="form-label">Image 4</label>
+                                            <input type="url" class="form-control" id="discord_image4" name="image4" required
+                                                   placeholder="https://example.com/image4.jpg">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="url-counter">
+                                    <span id="discord_imageCount">0</span>/4 images provided
+                                </div>
+                            </div>
+                            
+                            <!-- Audio Section -->
+                            <div class="form-section mb-4">
+                                <h5><i class="fas fa-music me-2"></i>Audio URLs (4 required)</h5>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="discord_audio1" class="form-label">Audio 1</label>
+                                            <input type="url" class="form-control" id="discord_audio1" name="audio1" required
+                                                   placeholder="https://example.com/audio1.mp3">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="discord_audio2" class="form-label">Audio 2</label>
+                                            <input type="url" class="form-control" id="discord_audio2" name="audio2" required
+                                                   placeholder="https://example.com/audio2.mp3">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="discord_audio3" class="form-label">Audio 3</label>
+                                            <input type="url" class="form-control" id="discord_audio3" name="audio3" required
+                                                   placeholder="https://example.com/audio3.mp3">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="discord_audio4" class="form-label">Audio 4</label>
+                                            <input type="url" class="form-control" id="discord_audio4" name="audio4" required
+                                                   placeholder="https://example.com/audio4.mp3">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="url-counter">
+                                    <span id="discord_audioCount">0</span>/4 audios provided
+                                </div>
+                            </div>
+                            
+                            <!-- Submit Buttons -->
+                            <div class="text-center mt-4">
+                                <button type="button" class="btn btn-primary btn-lg me-3" onclick="submitDiscordJob('submitjob')">
+                                    <i class="fas fa-paper-plane me-2"></i>Submit Job
+                                </button>
+                                <button type="button" class="btn btn-warning btn-lg" onclick="submitDiscordJob('nocapjob')">
+                                    <i class="fas fa-rocket me-2"></i>No Cap Job
+                                </button>
+                            </div>
+                            
+                            <!-- Configuration Section -->
+                            <div class="mt-4">
+                                <hr>
+                                <h6><i class="fas fa-cog me-2"></i>Webhook Configuration</h6>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <small class="text-muted">Submit Job URL:</small>
+                                        <div class="text-truncate" id="submitUrl">Loading...</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <small class="text-muted">No Cap Job URL:</small>
+                                        <div class="text-truncate" id="nocapUrl">Loading...</div>
+                                    </div>
+                                </div>
+                                <div class="mt-2">
+                                    <small class="text-muted">Last Updated: <span id="lastUpdated">Loading...</span></small>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-secondary mt-2" onclick="showConfigModal()">
+                                    <i class="fas fa-edit me-1"></i>Update URLs
+                                </button>
+                            </div>
+                            
+                            <!-- Loading Spinner -->
+                            <div class="text-center mt-3 loading-spinner" id="discordLoadingSpinner">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Submitting...</span>
+                                </div>
+                                <p class="mt-2">Submitting job...</p>
+                            </div>
+                            
+                            <!-- Response Messages -->
+                            <div class="mt-3">
+                                <div class="alert alert-success" id="discordSuccessMessage" role="alert" style="display: none;">
+                                    <i class="fas fa-check-circle me-2"></i>
+                                    <span id="discordSuccessText"></span>
+                                </div>
+                                <div class="alert alert-danger" id="discordErrorMessage" role="alert" style="display: none;">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    <span id="discordErrorText"></span>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Configuration Modal -->
+    <div class="modal fade" id="configModal" tabindex="-1" aria-labelledby="configModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="configModalLabel">
+                        <i class="fas fa-cog me-2"></i>Update Webhook URLs
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted">Enter your new ngrok base URL. The script will automatically construct the full webhook URLs.</p>
+                    
+                    <div class="mb-3">
+                        <label for="ngrokBaseUrl" class="form-label">Ngrok Base URL</label>
+                        <input type="url" class="form-control" id="ngrokBaseUrl" 
+                               placeholder="https://abc123.ngrok-free.app">
+                        <div class="form-text">Enter the base ngrok URL (without /webhook/...)</div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <small>
+                            <strong>Generated URLs:</strong><br>
+                            Submit Job: <span id="generatedSubmitUrl">-</span><br>
+                            No Cap Job: <span id="generatedNocapUrl">-</span>
+                        </small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="updateWebhookUrls()">
+                        <i class="fas fa-save me-1"></i>Update URLs
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            setupDiscordEventListeners();
+            loadDiscordConfig();
+        });
+        
+        function setupDiscordEventListeners() {
+            // Add event listeners for all Discord image and audio inputs
+            for (let i = 1; i <= 4; i++) {
+                const imageInput = document.getElementById(`discord_image${i}`);
+                const audioInput = document.getElementById(`discord_audio${i}`);
+                
+                if (imageInput) {
+                    imageInput.removeEventListener('input', updateDiscordCounters);
+                    imageInput.addEventListener('input', updateDiscordCounters);
+                }
+                
+                if (audioInput) {
+                    audioInput.removeEventListener('input', updateDiscordCounters);
+                    audioInput.addEventListener('input', updateDiscordCounters);
+                }
+            }
+        }
+        
+        function updateDiscordCounters() {
+            let imageCount = 0;
+            let audioCount = 0;
+            
+            // Count filled image inputs
+            for (let i = 1; i <= 4; i++) {
+                if (document.getElementById(`discord_image${i}`).value.trim()) {
+                    imageCount++;
+                }
+            }
+            
+            // Count filled audio inputs
+            for (let i = 1; i <= 4; i++) {
+                if (document.getElementById(`discord_audio${i}`).value.trim()) {
+                    audioCount++;
+                }
+            }
+            
+            document.getElementById('discord_imageCount').textContent = imageCount;
+            document.getElementById('discord_audioCount').textContent = audioCount;
+        }
+        
+        function submitDiscordJob(endpoint) {
+            // Validate form
+            const user = document.getElementById('discord_user').value.trim();
+            if (!user) {
+                showDiscordError('Please enter a username');
+                return;
+            }
+            
+            // Collect image URLs
+            const images = [];
+            for (let i = 1; i <= 4; i++) {
+                const imageUrl = document.getElementById(`discord_image${i}`).value.trim();
+                if (!imageUrl) {
+                    showDiscordError(`Please provide Image ${i} URL`);
+                    return;
+                }
+                images.push(imageUrl);
+            }
+            
+            // Collect audio URLs
+            const audios = [];
+            for (let i = 1; i <= 4; i++) {
+                const audioUrl = document.getElementById(`discord_audio${i}`).value.trim();
+                if (!audioUrl) {
+                    showDiscordError(`Please provide Audio ${i} URL`);
+                    return;
+                }
+                audios.push(audioUrl);
+            }
+            
+            // Prepare payload
+            const payload = {
+                user: user,
+                images: images,
+                audios: audios
+            };
+            
+            // Show loading state
+            showDiscordLoading(true);
+            hideDiscordMessages();
+            
+            // Submit to endpoint
+            fetch(`/${endpoint}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(response => response.json())
+            .then(data => {
+                showDiscordLoading(false);
+                
+                if (response.ok) {
+                    showDiscordSuccess(data.message || 'Job submitted successfully!');
+                } else {
+                    showDiscordError(data.error || 'Failed to submit job');
+                }
+            })
+            .catch(error => {
+                showDiscordLoading(false);
+                showDiscordError(`Network error: ${error.message}`);
+            });
+        }
+        
+        function showDiscordLoading(show) {
+            const spinner = document.getElementById('discordLoadingSpinner');
+            const buttons = document.querySelectorAll('button[type="button"]');
+            
+            if (show) {
+                spinner.style.display = 'block';
+                buttons.forEach(btn => btn.disabled = true);
+            } else {
+                spinner.style.display = 'none';
+                buttons.forEach(btn => btn.disabled = false);
+            }
+        }
+        
+        function showDiscordSuccess(message) {
+            document.getElementById('discordSuccessText').textContent = message;
+            document.getElementById('discordSuccessMessage').style.display = 'block';
+            document.getElementById('discordErrorMessage').style.display = 'none';
+        }
+        
+        function showDiscordError(message) {
+            document.getElementById('discordErrorText').textContent = message;
+            document.getElementById('discordErrorMessage').style.display = 'block';
+            document.getElementById('discordSuccessMessage').style.display = 'none';
+        }
+        
+        function hideDiscordMessages() {
+            document.getElementById('discordSuccessMessage').style.display = 'none';
+            document.getElementById('discordErrorMessage').style.display = 'none';
+        }
+        
+        // Configuration Management Functions
+        function loadDiscordConfig() {
+            fetch('/api/discord/config')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const config = data.config;
+                        document.getElementById('submitUrl').textContent = config.webhook_urls.submit_job || 'Not configured';
+                        document.getElementById('nocapUrl').textContent = config.webhook_urls.nocap_job || 'Not configured';
+                        document.getElementById('lastUpdated').textContent = 'Just loaded';
+                    } else {
+                        document.getElementById('submitUrl').textContent = 'Error loading config';
+                        document.getElementById('nocapUrl').textContent = 'Error loading config';
+                        document.getElementById('lastUpdated').textContent = 'Error';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading Discord config:', error);
+                    document.getElementById('submitUrl').textContent = 'Error loading config';
+                    document.getElementById('nocapUrl').textContent = 'Error loading config';
+                    document.getElementById('lastUpdated').textContent = 'Error';
+                });
+        }
+        
+        function showConfigModal() {
+            const modalElement = document.getElementById('configModal');
+            const modal = new bootstrap.Modal(modalElement, {
+                backdrop: true,
+                keyboard: true,
+                focus: true
+            });
+            
+            modal.show();
+            
+            // Remove existing event listener to prevent duplicates
+            const ngrokInput = document.getElementById('ngrokBaseUrl');
+            ngrokInput.removeEventListener('input', generateUrls);
+            
+            // Add event listener for URL generation
+            ngrokInput.addEventListener('input', generateUrls);
+            
+            // Clear the input and generate URLs
+            ngrokInput.value = '';
+            generateUrls();
+            
+            // Focus on the input
+            setTimeout(() => {
+                ngrokInput.focus();
+            }, 500);
+        }
+        
+        function generateUrls() {
+            const baseUrl = document.getElementById('ngrokBaseUrl').value.trim();
+            
+            if (baseUrl) {
+                // Remove trailing slash if present
+                const cleanUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+                
+                document.getElementById('generatedSubmitUrl').textContent = `${cleanUrl}/webhook/discord-input`;
+                document.getElementById('generatedNocapUrl').textContent = `${cleanUrl}/webhook/back`;
+            } else {
+                document.getElementById('generatedSubmitUrl').textContent = '-';
+                document.getElementById('generatedNocapUrl').textContent = '-';
+            }
+        }
+        
+        function updateWebhookUrls() {
+            const baseUrl = document.getElementById('ngrokBaseUrl').value.trim();
+            
+            if (!baseUrl) {
+                alert('Please enter a base URL');
+                return;
+            }
+            
+            // Remove trailing slash if present
+            const cleanUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+            
+            const submitUrl = `${cleanUrl}/webhook/discord-input`;
+            const nocapUrl = `${cleanUrl}/webhook/back`;
+            
+            fetch('/api/discord/config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    submit_job_url: submitUrl,
+                    nocap_job_url: nocapUrl
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Webhook URLs updated successfully!');
+                    
+                    // Close modal properly
+                    const modalElement = document.getElementById('configModal');
+                    const modal = bootstrap.Modal.getInstance(modalElement);
+                    if (modal) {
+                        modal.hide();
+                    } else {
+                        // Fallback: remove modal backdrop manually
+                        const backdrop = document.querySelector('.modal-backdrop');
+                        if (backdrop) {
+                            backdrop.remove();
+                        }
+                        modalElement.classList.remove('show');
+                        document.body.classList.remove('modal-open');
+                    }
+                    
+                    // Reload config display
+                    loadDiscordConfig();
+                } else {
+                    alert(`Error updating URLs: ${data.error}`);
+                }
+            })
+            .catch(error => {
+                console.error('Error updating URLs:', error);
+                alert('Error updating URLs. Please try again.');
+            });
+        }
+    </script>
+</body>
+</html> 

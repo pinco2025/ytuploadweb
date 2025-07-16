@@ -9,22 +9,8 @@
   {
     "id": "client2",
     "name": "YouTube Client 2",
-    "client_id": "your-client-id-2.apps.googleusercontent.com",
-    "client_secret": "your-client-secret-2",
-    "upload_count": 0
-  },
-  {
-    "id": "client3",
-    "name": "YouTube Client 3",
-    "client_id": "your-client-id-3.apps.googleusercontent.com",
-    "client_secret": "your-client-secret-3",
-    "upload_count": 0
-  },
-  {
-    "id": "client4",
-    "name": "YouTube Client 4",
-    "client_id": "your-client-id-4.apps.googleusercontent.com",
-    "client_secret": "your-client-secret-4",
+    "client_id": "785230631097-26oqggrqeelarg88mt62t85t3ve0bo71.apps.googleusercontent.com",
+    "client_secret": "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",
     "upload_count": 0
   }
 ]
