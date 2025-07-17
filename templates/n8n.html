@@ -394,7 +394,7 @@
         
         // Configuration Management Functions
         function loadN8nConfig() {
-            fetch('/api/discord/config')
+            fetch('/api/n8n/config')
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
@@ -472,7 +472,7 @@
             const submitUrl = `${cleanUrl}/webhook/discord-input`;
             const nocapUrl = `${cleanUrl}/webhook/back`;
             
-            fetch('/api/discord/config', {
+            fetch('/api/n8n/config', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
