@@ -10,6 +10,8 @@ from auth_manager import AuthManager
 from validators import InputValidator
 from n8n_service import N8nService
 from config import Config
+import requests
+import json
 
 # Configure logging
 logging.basicConfig(
@@ -34,6 +36,14 @@ youtube_service = YouTubeServiceV2(auth_manager)
 drive_service = GoogleDriveService()
 n8n_service = N8nService()
 
+def load_n8n_config():
+    try:
+        with open('n8n_config.json', 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f'Error loading n8n_config.json: {e}')
+        return {}
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
     """Main upload page with improved error handling and validation."""
@@ -54,7 +64,7 @@ def index():
             available_clients = auth_manager.get_all_clients()
             if not available_clients:
                 flash('No YouTube clients configured. Please check your clients.json file.', 'error')
-                return render_template('index.html')
+                return render_template('index.html', clients=[], quota_status={})
             
             # Get channels for the selected client
             selected_client_id = form_data.get('client_id', available_clients[0]['id'] if available_clients else '')
@@ -62,7 +72,9 @@ def index():
             
             if channel_message != "Success":
                 flash(f'Error loading channels: {channel_message}', 'error')
-                return render_template('index.html')
+                clients = auth_manager.get_all_clients()
+                quota_status = {c['id']: youtube_service.get_quota_status(c['id']) for c in clients}
+                return render_template('index.html', clients=clients, quota_status=quota_status)
             
             # Validate all form data
             is_valid, error_msg, cleaned_data = InputValidator.validate_upload_form_data(
@@ -71,13 +83,17 @@ def index():
             
             if not is_valid:
                 flash(error_msg, 'error')
-                return render_template('index.html')
+                clients = auth_manager.get_all_clients()
+                quota_status = {c['id']: youtube_service.get_quota_status(c['id']) for c in clients}
+                return render_template('index.html', clients=clients, quota_status=quota_status)
             
             # Check quota before proceeding
             quota_status = youtube_service.get_quota_status(cleaned_data['client_id'])
             if quota_status.get('remaining_quota', 0) < 1600:  # Upload costs 1600 quota points
                 flash(f'Insufficient API quota for client {cleaned_data["client_id"]}. Remaining: {quota_status.get("remaining_quota", 0)}', 'error')
-                return render_template('index.html')
+                clients = auth_manager.get_all_clients()
+                quota_status = {c['id']: youtube_service.get_quota_status(c['id']) for c in clients}
+                return render_template('index.html', clients=clients, quota_status=quota_status)
             
             # Generate unique filename
             unique_filename = f"video_{uuid.uuid4().hex}.mp4"
@@ -90,7 +106,9 @@ def index():
                 
                 if not download_success:
                     flash('Failed to download video from Google Drive. Make sure the link is public and accessible.', 'error')
-                    return render_template('index.html')
+                    clients = auth_manager.get_all_clients()
+                    quota_status = {c['id']: youtube_service.get_quota_status(c['id']) for c in clients}
+                    return render_template('index.html', clients=clients, quota_status=quota_status)
                 
                 # Prepare description with hashtags
                 description = cleaned_data['description']
@@ -125,7 +143,9 @@ def index():
                                          client_name=next((c['name'] for c in available_clients if c['id'] == cleaned_data['client_id']), 'Unknown'))
                 else:
                     flash(f'Failed to upload video: {message}', 'error')
-                    return render_template('index.html')
+                    clients = auth_manager.get_all_clients()
+                    quota_status = {c['id']: youtube_service.get_quota_status(c['id']) for c in clients}
+                    return render_template('index.html', clients=clients, quota_status=quota_status)
                     
             finally:
                 # Clean up local file
@@ -139,7 +159,9 @@ def index():
         except Exception as e:
             logger.error(f"Unexpected error during upload: {e}")
             flash(f'An unexpected error occurred: {str(e)}', 'error')
-            return render_template('index.html')
+            clients = auth_manager.get_all_clients()
+            quota_status = {c['id']: youtube_service.get_quota_status(c['id']) for c in clients}
+            return render_template('index.html', clients=clients, quota_status=quota_status)
     
     # GET request - show the form
     try:
@@ -469,6 +491,68 @@ def update_n8n_config():
             "success": False,
             "error": str(e)
         }), 500
+
+# --- New Route: Drive Job Submission ---
+@app.route('/drive-job', methods=['GET', 'POST'])
+def drive_job():
+    if request.method == 'GET':
+        return render_template('drive_job.html')
+
+    # POST: handle job logic
+    # Configurations
+    GOOGLE_DRIVE_FOLDER_ID = '1P1LGd_9GXYjD4mrksUEcRME4JNZYndxc'
+    n8n_config = load_n8n_config()
+    WEBHOOK_URLS = n8n_config.get('webhook_urls', {})
+    JOB_TYPE = request.form.get('job_type')
+    if JOB_TYPE not in WEBHOOK_URLS:
+        return jsonify({'success': False, 'message': 'Invalid job type selected or webhook not configured.'}), 400
+
+    # Initialize Google Drive service
+    drive_service = GoogleDriveService(credentials_path='credentials.json')
+    # MIME types
+    AUDIO_MIME_TYPES = [
+        'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/x-m4a', 'audio/mp4', 'audio/aac'
+    ]
+    IMAGE_MIME_TYPES = [
+        'image/jpeg', 'image/png', 'image/jpg', 'image/webp'
+    ]
+    # List files in folder
+    files = drive_service.list_files_in_folder(GOOGLE_DRIVE_FOLDER_ID, max_files=20)
+    # Separate and sort by type
+    audios = [f for f in files if f['mimeType'] in AUDIO_MIME_TYPES]
+    images = [f for f in files if f['mimeType'] in IMAGE_MIME_TYPES]
+    audios = sorted(audios, key=lambda x: x['modifiedTime'])[:4]
+    images = sorted(images, key=lambda x: x['modifiedTime'])[:4]
+    if len(audios) < 4 or len(images) < 4:
+        return jsonify({'success': False, 'message': 'Not enough audio or image files in the folder.'}), 400
+    # Generate public links
+    audio_links = [drive_service.get_public_download_link(f['id'], f['name']) for f in audios]
+    image_links = [drive_service.get_public_download_link(f['id'], f['name']) for f in images]
+    # Construct payload (example structure, adjust as needed)
+    payload = {
+        'audios': audio_links,
+        'images': image_links,
+        'job_type': JOB_TYPE
+    }
+    # Post to webhook
+    webhook_url = WEBHOOK_URLS[JOB_TYPE]
+    resp = requests.post(webhook_url, json=payload)
+    if resp.status_code == 200:
+        # Delete files after success
+        for f in audios + images:
+            try:
+                drive_service.service.files().delete(fileId=f['id']).execute()
+            except Exception as e:
+                print(f'Error deleting file {f["id"]}: {e}')
+        return jsonify({
+            'success': True, 
+            'message': 'Job submitted and files deleted successfully.',
+            'audio_links': audio_links,
+            'image_links': image_links,
+            'webhook_url': webhook_url
+        })
+    else:
+        return jsonify({'success': False, 'message': f'Webhook error: {resp.text}'}), 500
 
 @app.errorhandler(404)
 def not_found(error):

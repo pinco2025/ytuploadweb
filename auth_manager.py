@@ -111,19 +111,26 @@ class AuthManager:
                         "redirect_uris": ["http://localhost"]
                     }
                 }
-                
                 flow = InstalledAppFlow.from_client_config(
                     client_config,
                     scopes=scopes
                 )
-                
-                creds = flow.run_local_server(port=8090, open_browser=True)
-                
+                # Always force consent and offline access to get refresh token
+                auth_url, _ = flow.authorization_url(
+                    access_type='offline',
+                    prompt='consent',
+                    include_granted_scopes='true'
+                )
+                print(f"Please go to this URL and authorize access: {auth_url}")
+                flow.fetch_token(authorization_response=input("Enter the full redirect URL after authorization: "))
+                creds = flow.credentials
                 # Save credentials
                 with open(token_path, 'wb') as token:
                     pickle.dump(creds, token)
-                
                 logger.info(f"New authentication completed for client {client_id}")
+            # Warn if refresh token is missing
+            if creds and not getattr(creds, 'refresh_token', None):
+                logger.warning(f"No refresh token present for client {client_id}. You may need to re-authenticate with prompt='consent'.")
             
             self.active_client_id = client_id
             return True, f"Successfully authenticated client {client_id}"
