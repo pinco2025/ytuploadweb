@@ -18,6 +18,9 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 import pickle
 
+# Allow OAuth2 to work with HTTP for localhost development
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -523,6 +526,9 @@ def drive_job():
     ]
     # List files in folder
     files = drive_service.list_files_in_folder(GOOGLE_DRIVE_FOLDER_ID, max_files=20)
+    if not files:
+        return jsonify({'success': False, 'message': 'No files found in the specified folder.'}), 400
+    
     # Separate and sort by type
     audios = [f for f in files if f['mimeType'] in AUDIO_MIME_TYPES]
     images = [f for f in files if f['mimeType'] in IMAGE_MIME_TYPES]
@@ -570,10 +576,11 @@ def auth_redirect(client_id):
         'https://www.googleapis.com/auth/youtube.readonly'
     ]
     base_url = "https://accounts.google.com/o/oauth2/auth"
+    
     params = {
         'response_type': 'code',
         'client_id': client['client_id'],
-        'redirect_uri': 'http://localhost:5000/oauth2callback',  # Back to HTTP
+        'redirect_uri': Config.REDIRECT_URI,
         'scope': ' '.join(scopes),
         'access_type': 'offline',
         'prompt': 'consent',
@@ -586,17 +593,7 @@ def auth_redirect(client_id):
     print(f"🔐 OAuth URL for client {client_id}:")
     print(f"{'='*80}")
     print(f"URL: {auth_url}")
-    print(f"{'='*80}")
-    print("🌐 Opening browser automatically...")
     print(f"{'='*80}\n")
-    
-    # Automatically open the URL in the default browser
-    try:
-        webbrowser.open(auth_url)
-        print("✅ Browser opened successfully!")
-    except Exception as e:
-        print(f"❌ Failed to open browser automatically: {e}")
-        print("📋 Please copy and paste the URL above into your browser manually.")
     
     return redirect(auth_url)
 
@@ -660,41 +657,37 @@ def oauth2callback():
         
         logger.info(f"Processing OAuth callback for client: {client_id}")
         
-        # Create the OAuth flow to exchange the code for tokens
-        scopes = [
-            'https://www.googleapis.com/auth/youtube.upload',
-            'https://www.googleapis.com/auth/youtube.readonly'
-        ]
-        
-        client_config = {
-            "installed": {
-                "client_id": client['client_id'],
-                "client_secret": client['client_secret'],
-                "auth_uri": Config.AUTH_URI,
-                "token_uri": Config.TOKEN_URI,
-                "auth_provider_x509_cert_url": Config.AUTH_PROVIDER_X509_CERT_URL,
-                "redirect_uris": ["http://localhost:5000/oauth2callback"]  # Back to HTTP
-            }
-        }
-        
-        flow = InstalledAppFlow.from_client_config(
-            client_config,
-            scopes=scopes
-        )
-        
-        # Exchange the authorization code for tokens
-        # We need to construct the authorization response URL
-        authorization_response = request.url
-        
+        # Exchange the authorization code for tokens using direct requests
         logger.info(f"Exchanging authorization code for tokens...")
         
-        flow.fetch_token(
-            authorization_response=authorization_response,
-            redirect_uri="http://localhost:5000/oauth2callback"  # Back to HTTP
-        )
+        token_url = Config.TOKEN_URI
+        token_data = {
+            'code': auth_code,
+            'client_id': client['client_id'],
+            'client_secret': client['client_secret'],
+            'redirect_uri': Config.REDIRECT_URI,
+            'grant_type': 'authorization_code'
+        }
         
-        # Get the credentials from the flow
-        credentials = flow.credentials
+        # Make the token exchange request
+        response = requests.post(token_url, data=token_data)
+        
+        if response.status_code != 200:
+            logger.error(f"Token exchange failed: {response.status_code} - {response.text}")
+            flash(f'Token exchange failed: {response.text}', 'error')
+            return redirect(url_for('index'))
+        
+        token_response = response.json()
+        
+        # Create credentials object
+        credentials = Credentials(
+            token=token_response['access_token'],
+            refresh_token=token_response.get('refresh_token'),
+            token_uri=Config.TOKEN_URI,
+            client_id=client['client_id'],
+            client_secret=client['client_secret'],
+            scopes=['https://www.googleapis.com/auth/youtube.upload', 'https://www.googleapis.com/auth/youtube.readonly']
+        )
         
         # Save the credentials to a pickle file
         token_path = os.path.join('tokens', f'token_{client_id}.pickle')

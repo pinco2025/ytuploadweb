@@ -2,7 +2,6 @@ import os
 import json
 import pickle
 import logging
-import webbrowser
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 from google.oauth2.credentials import Credentials
@@ -321,8 +320,7 @@ class AuthManager:
                     "client_secret": client['client_secret'],
                     "auth_uri": Config.AUTH_URI,
                     "token_uri": Config.TOKEN_URI,
-                    "auth_provider_x509_cert_url": Config.AUTH_PROVIDER_X509_CERT_URL,
-                    "redirect_uris": ["http://localhost:5000/oauth2callback"]  # Back to HTTP
+                    "auth_provider_x509_cert_url": Config.AUTH_PROVIDER_X509_CERT_URL
                 }
             }
             
@@ -343,17 +341,7 @@ class AuthManager:
             print(f"🔐 OAuth URL for client {client_id}:")
             print(f"{'='*80}")
             print(f"URL: {auth_url}")
-            print(f"{'='*80}")
-            print("🌐 Opening browser automatically...")
             print(f"{'='*80}\n")
-            
-            # Try to open browser automatically
-            try:
-                webbrowser.open(auth_url)
-                print("✅ Browser opened successfully!")
-            except Exception as e:
-                print(f"❌ Failed to open browser automatically: {e}")
-                print("📋 Please copy and paste the URL above into your browser manually.")
             
             return True, auth_url
             

@@ -198,6 +198,60 @@ The application will be available at `http://localhost:5000`
 
 ## 🔒 Security Improvements
 
+## 🔐 OAuth Configuration (Localhost Only)
+
+### Simple Setup
+The application is configured to work with localhost only, making OAuth setup straightforward.
+
+### Google Cloud Console Configuration
+
+1. **Go to Google Cloud Console**: https://console.cloud.google.com/
+2. **Select your project**
+3. **Navigate to "APIs & Services" > "Credentials"**
+4. **Find your OAuth 2.0 Client ID and click on it**
+5. **In "Authorized redirect URIs", add**:
+   ```
+   http://localhost:5000/oauth2callback
+   ```
+6. **Click "Save"**
+
+### Running the Application
+
+1. **Start the Flask app**:
+   ```bash
+   python app.py
+   ```
+
+2. **Access the application**:
+   ```
+   http://localhost:5000
+   ```
+
+3. **Authenticate**: Click the authentication button and complete the OAuth flow
+
+### Benefits of Localhost-Only Setup
+
+- ✅ **Simpler Configuration**: Only one redirect URI to manage
+- ✅ **No External Dependencies**: No need for ngrok or tunneling
+- ✅ **Faster Development**: Direct local access
+- ✅ **Better Security**: No exposure to external networks
+- ✅ **Consistent URLs**: Same URL every time
+
+### Troubleshooting
+
+**Error: "redirect_uri_mismatch"**
+- Verify `http://localhost:5000/oauth2callback` is added to Google Cloud Console
+- Wait 2-5 minutes for changes to propagate
+- Clear browser cache and cookies
+
+**Error: "Connection refused"**
+- Make sure Flask app is running on port 5000
+- Check no other app is using port 5000
+
+**Error: "Invalid client"**
+- Verify client ID and secret in `clients.json`
+- Ensure OAuth client is configured for "Desktop application"
+
 - **Input Sanitization**: Prevent XSS attacks
 - **Token Security**: Secure OAuth token storage
 - **File Validation**: Validate file types and sizes
