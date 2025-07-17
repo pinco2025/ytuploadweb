@@ -8,7 +8,7 @@ from google_drive_service import GoogleDriveService
 from youtube_service import YouTubeServiceV2
 from auth_manager import AuthManager
 from validators import InputValidator
-from discord_service import DiscordService
+from n8n_service import N8nService
 from config import Config
 
 # Configure logging
@@ -32,7 +32,7 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 auth_manager = AuthManager()
 youtube_service = YouTubeServiceV2(auth_manager)
 drive_service = GoogleDriveService()
-discord_service = DiscordService()
+n8n_service = N8nService()
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -371,7 +371,7 @@ def submit_job():
             return jsonify({"error": "Audios must be a list of exactly 4 URLs"}), 400
         
         # Submit job to Discord webhook
-        success, message, status_code = discord_service.submit_job(user, images, audios)
+        success, message, status_code = n8n_service.submit_job(user, images, audios)
         
         if success:
             return jsonify({"message": message}), 200
@@ -406,7 +406,7 @@ def nocap_job():
             return jsonify({"error": "Audios must be a list of exactly 4 URLs"}), 400
         
         # Submit nocap job to Discord webhook
-        success, message, status_code = discord_service.nocap_job(user, images, audios)
+        success, message, status_code = n8n_service.nocap_job(user, images, audios)
         
         if success:
             return jsonify({"message": message}), 200
@@ -426,12 +426,12 @@ def discord_jobs():
 def get_discord_config():
     """Get current Discord webhook configuration."""
     try:
-        urls = discord_service.get_current_urls()
+        urls = n8n_service.get_current_urls()
         return jsonify({
             "success": True,
             "config": {
                 "webhook_urls": urls,
-                "timeout": discord_service.timeout
+                "timeout": n8n_service.timeout
             }
         })
     except Exception as e:
@@ -456,7 +456,7 @@ def update_discord_config():
         if not submit_url or not nocap_url:
             return jsonify({"error": "Both submit_job_url and nocap_job_url are required"}), 400
         
-        success = discord_service.update_webhook_urls(submit_url, nocap_url)
+        success = n8n_service.update_webhook_urls(submit_url, nocap_url)
         
         if success:
             return jsonify({

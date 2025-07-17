@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Discord Job Submission</title>
+    <title>N8N Job Submission</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -43,7 +43,7 @@
                 <div class="card">
                     <div class="card-header bg-success text-white">
                         <h2 class="text-center mb-0">
-                            <i class="fas fa-robot me-2"></i>Discord Job Submission
+                            <i class="fas fa-robot me-2"></i>N8N Job Submission
                         </h2>
                     </div>
                     <div class="card-body">
@@ -60,13 +60,13 @@
                             {% endif %}
                         {% endwith %}
                         
-                        <form id="discordJobForm">
+                        <form id="n8nJobForm">
                             <!-- User Input -->
                             <div class="form-section mb-4">
                                 <h5><i class="fas fa-user me-2"></i>User Information</h5>
                                 <div class="mb-3">
-                                    <label for="discord_user" class="form-label">Username</label>
-                                    <input type="text" class="form-control" id="discord_user" name="user" required
+                                    <label for="n8n_user" class="form-label">Username</label>
+                                    <input type="text" class="form-control" id="n8n_user" name="user" required
                                            placeholder="Enter username">
                                 </div>
                             </div>
@@ -77,31 +77,31 @@
                                 <div class="row">
                                     <div class="col-md-6">
                                         <div class="mb-3">
-                                            <label for="discord_image1" class="form-label">Image 1</label>
-                                            <input type="url" class="form-control" id="discord_image1" name="image1" required
+                                            <label for="n8n_image1" class="form-label">Image 1</label>
+                                            <input type="url" class="form-control" id="n8n_image1" name="image1" required
                                                    placeholder="https://example.com/image1.jpg">
                                         </div>
                                         <div class="mb-3">
-                                            <label for="discord_image2" class="form-label">Image 2</label>
-                                            <input type="url" class="form-control" id="discord_image2" name="image2" required
+                                            <label for="n8n_image2" class="form-label">Image 2</label>
+                                            <input type="url" class="form-control" id="n8n_image2" name="image2" required
                                                    placeholder="https://example.com/image2.jpg">
                                         </div>
                                     </div>
                                     <div class="col-md-6">
                                         <div class="mb-3">
-                                            <label for="discord_image3" class="form-label">Image 3</label>
-                                            <input type="url" class="form-control" id="discord_image3" name="image3" required
+                                            <label for="n8n_image3" class="form-label">Image 3</label>
+                                            <input type="url" class="form-control" id="n8n_image3" name="image3" required
                                                    placeholder="https://example.com/image3.jpg">
                                         </div>
                                         <div class="mb-3">
-                                            <label for="discord_image4" class="form-label">Image 4</label>
-                                            <input type="url" class="form-control" id="discord_image4" name="image4" required
+                                            <label for="n8n_image4" class="form-label">Image 4</label>
+                                            <input type="url" class="form-control" id="n8n_image4" name="image4" required
                                                    placeholder="https://example.com/image4.jpg">
                                         </div>
                                     </div>
                                 </div>
                                 <div class="url-counter">
-                                    <span id="discord_imageCount">0</span>/4 images provided
+                                    <span id="n8n_imageCount">0</span>/4 images provided
                                 </div>
                             </div>
                             
@@ -111,40 +111,40 @@
                                 <div class="row">
                                     <div class="col-md-6">
                                         <div class="mb-3">
-                                            <label for="discord_audio1" class="form-label">Audio 1</label>
-                                            <input type="url" class="form-control" id="discord_audio1" name="audio1" required
+                                            <label for="n8n_audio1" class="form-label">Audio 1</label>
+                                            <input type="url" class="form-control" id="n8n_audio1" name="audio1" required
                                                    placeholder="https://example.com/audio1.mp3">
                                         </div>
                                         <div class="mb-3">
-                                            <label for="discord_audio2" class="form-label">Audio 2</label>
-                                            <input type="url" class="form-control" id="discord_audio2" name="audio2" required
+                                            <label for="n8n_audio2" class="form-label">Audio 2</label>
+                                            <input type="url" class="form-control" id="n8n_audio2" name="audio2" required
                                                    placeholder="https://example.com/audio2.mp3">
                                         </div>
                                     </div>
                                     <div class="col-md-6">
                                         <div class="mb-3">
-                                            <label for="discord_audio3" class="form-label">Audio 3</label>
-                                            <input type="url" class="form-control" id="discord_audio3" name="audio3" required
+                                            <label for="n8n_audio3" class="form-label">Audio 3</label>
+                                            <input type="url" class="form-control" id="n8n_audio3" name="audio3" required
                                                    placeholder="https://example.com/audio3.mp3">
                                         </div>
                                         <div class="mb-3">
-                                            <label for="discord_audio4" class="form-label">Audio 4</label>
-                                            <input type="url" class="form-control" id="discord_audio4" name="audio4" required
+                                            <label for="n8n_audio4" class="form-label">Audio 4</label>
+                                            <input type="url" class="form-control" id="n8n_audio4" name="audio4" required
                                                    placeholder="https://example.com/audio4.mp3">
                                         </div>
                                     </div>
                                 </div>
                                 <div class="url-counter">
-                                    <span id="discord_audioCount">0</span>/4 audios provided
+                                    <span id="n8n_audioCount">0</span>/4 audios provided
                                 </div>
                             </div>
                             
                             <!-- Submit Buttons -->
                             <div class="text-center mt-4">
-                                <button type="button" class="btn btn-primary btn-lg me-3" onclick="submitDiscordJob('submitjob')">
+                                <button type="button" class="btn btn-primary btn-lg me-3" onclick="submitN8nJob('submitjob')">
                                     <i class="fas fa-paper-plane me-2"></i>Submit Job
                                 </button>
-                                <button type="button" class="btn btn-warning btn-lg" onclick="submitDiscordJob('nocapjob')">
+                                <button type="button" class="btn btn-warning btn-lg" onclick="submitN8nJob('nocapjob')">
                                     <i class="fas fa-rocket me-2"></i>No Cap Job
                                 </button>
                             </div>
@@ -172,7 +172,7 @@
                             </div>
                             
                             <!-- Loading Spinner -->
-                            <div class="text-center mt-3 loading-spinner" id="discordLoadingSpinner">
+                            <div class="text-center mt-3 loading-spinner" id="n8nLoadingSpinner">
                                 <div class="spinner-border text-primary" role="status">
                                     <span class="visually-hidden">Submitting...</span>
                                 </div>
@@ -181,13 +181,13 @@
                             
                             <!-- Response Messages -->
                             <div class="mt-3">
-                                <div class="alert alert-success" id="discordSuccessMessage" role="alert" style="display: none;">
+                                <div class="alert alert-success" id="n8nSuccessMessage" role="alert" style="display: none;">
                                     <i class="fas fa-check-circle me-2"></i>
-                                    <span id="discordSuccessText"></span>
+                                    <span id="n8nSuccessText"></span>
                                 </div>
-                                <div class="alert alert-danger" id="discordErrorMessage" role="alert" style="display: none;">
+                                <div class="alert alert-danger" id="n8nErrorMessage" role="alert" style="display: none;">
                                     <i class="fas fa-exclamation-triangle me-2"></i>
-                                    <span id="discordErrorText"></span>
+                                    <span id="n8nErrorText"></span>
                                 </div>
                             </div>
                         </form>
@@ -239,64 +239,64 @@
     <script>
         // Initialize page
         document.addEventListener('DOMContentLoaded', function() {
-            setupDiscordEventListeners();
-            loadDiscordConfig();
+            setupN8nEventListeners();
+            loadN8nConfig();
         });
         
-        function setupDiscordEventListeners() {
-            // Add event listeners for all Discord image and audio inputs
+        function setupN8nEventListeners() {
+            // Add event listeners for all N8N image and audio inputs
             for (let i = 1; i <= 4; i++) {
-                const imageInput = document.getElementById(`discord_image${i}`);
-                const audioInput = document.getElementById(`discord_audio${i}`);
+                const imageInput = document.getElementById(`n8n_image${i}`);
+                const audioInput = document.getElementById(`n8n_audio${i}`);
                 
                 if (imageInput) {
-                    imageInput.removeEventListener('input', updateDiscordCounters);
-                    imageInput.addEventListener('input', updateDiscordCounters);
+                    imageInput.removeEventListener('input', updateN8nCounters);
+                    imageInput.addEventListener('input', updateN8nCounters);
                 }
                 
                 if (audioInput) {
-                    audioInput.removeEventListener('input', updateDiscordCounters);
-                    audioInput.addEventListener('input', updateDiscordCounters);
+                    audioInput.removeEventListener('input', updateN8nCounters);
+                    audioInput.addEventListener('input', updateN8nCounters);
                 }
             }
         }
         
-        function updateDiscordCounters() {
+        function updateN8nCounters() {
             let imageCount = 0;
             let audioCount = 0;
             
             // Count filled image inputs
             for (let i = 1; i <= 4; i++) {
-                if (document.getElementById(`discord_image${i}`).value.trim()) {
+                if (document.getElementById(`n8n_image${i}`).value.trim()) {
                     imageCount++;
                 }
             }
             
             // Count filled audio inputs
             for (let i = 1; i <= 4; i++) {
-                if (document.getElementById(`discord_audio${i}`).value.trim()) {
+                if (document.getElementById(`n8n_audio${i}`).value.trim()) {
                     audioCount++;
                 }
             }
             
-            document.getElementById('discord_imageCount').textContent = imageCount;
-            document.getElementById('discord_audioCount').textContent = audioCount;
+            document.getElementById('n8n_imageCount').textContent = imageCount;
+            document.getElementById('n8n_audioCount').textContent = audioCount;
         }
         
-        function submitDiscordJob(endpoint) {
+        function submitN8nJob(endpoint) {
             // Validate form
-            const user = document.getElementById('discord_user').value.trim();
+            const user = document.getElementById('n8n_user').value.trim();
             if (!user) {
-                showDiscordError('Please enter a username');
+                showN8nError('Please enter a username');
                 return;
             }
             
             // Collect image URLs
             const images = [];
             for (let i = 1; i <= 4; i++) {
-                const imageUrl = document.getElementById(`discord_image${i}`).value.trim();
+                const imageUrl = document.getElementById(`n8n_image${i}`).value.trim();
                 if (!imageUrl) {
-                    showDiscordError(`Please provide Image ${i} URL`);
+                    showN8nError(`Please provide Image ${i} URL`);
                     return;
                 }
                 images.push(imageUrl);
@@ -305,9 +305,9 @@
             // Collect audio URLs
             const audios = [];
             for (let i = 1; i <= 4; i++) {
-                const audioUrl = document.getElementById(`discord_audio${i}`).value.trim();
+                const audioUrl = document.getElementById(`n8n_audio${i}`).value.trim();
                 if (!audioUrl) {
-                    showDiscordError(`Please provide Audio ${i} URL`);
+                    showN8nError(`Please provide Audio ${i} URL`);
                     return;
                 }
                 audios.push(audioUrl);
@@ -321,35 +321,49 @@
             };
             
             // Show loading state
-            showDiscordLoading(true);
-            hideDiscordMessages();
+            showN8nLoading(true);
+            hideN8nMessages();
             
-            // Submit to endpoint
-            fetch(`/${endpoint}`, {
+            // Get the appropriate webhook URL based on endpoint
+            let webhookUrl;
+            if (endpoint === 'submitjob') {
+                webhookUrl = document.getElementById('submitUrl').textContent;
+            } else if (endpoint === 'nocapjob') {
+                webhookUrl = document.getElementById('nocapUrl').textContent;
+            }
+            
+            // Check if webhook URL is configured
+            if (!webhookUrl || webhookUrl === 'Loading...' || webhookUrl === 'Not configured' || webhookUrl === 'Error loading config') {
+                showN8nLoading(false);
+                showN8nError('Webhook URL not configured. Please update the configuration first.');
+                return;
+            }
+            
+            // Submit directly to the webhook URL
+            fetch(webhookUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(payload)
             })
-            .then(response => response.json())
-            .then(data => {
-                showDiscordLoading(false);
+            .then(response => {
+                showN8nLoading(false);
                 
                 if (response.ok) {
-                    showDiscordSuccess(data.message || 'Job submitted successfully!');
+                    showN8nSuccess('Job submitted successfully!');
                 } else {
-                    showDiscordError(data.error || 'Failed to submit job');
+                    showN8nError(`Webhook error: ${response.status} ${response.statusText}`);
                 }
             })
             .catch(error => {
-                showDiscordLoading(false);
-                showDiscordError(`Network error: ${error.message}`);
+                showN8nLoading(false);
+                showN8nError(`Network error: ${error.message}`);
             });
         }
         
-        function showDiscordLoading(show) {
-            const spinner = document.getElementById('discordLoadingSpinner');
+        function showN8nLoading(show) {
+            const spinner = document.getElementById('n8nLoadingSpinner');
             const buttons = document.querySelectorAll('button[type="button"]');
             
             if (show) {
@@ -361,25 +375,25 @@
             }
         }
         
-        function showDiscordSuccess(message) {
-            document.getElementById('discordSuccessText').textContent = message;
-            document.getElementById('discordSuccessMessage').style.display = 'block';
-            document.getElementById('discordErrorMessage').style.display = 'none';
+        function showN8nSuccess(message) {
+            document.getElementById('n8nSuccessText').textContent = message;
+            document.getElementById('n8nSuccessMessage').style.display = 'block';
+            document.getElementById('n8nErrorMessage').style.display = 'none';
         }
         
-        function showDiscordError(message) {
-            document.getElementById('discordErrorText').textContent = message;
-            document.getElementById('discordErrorMessage').style.display = 'block';
-            document.getElementById('discordSuccessMessage').style.display = 'none';
+        function showN8nError(message) {
+            document.getElementById('n8nErrorText').textContent = message;
+            document.getElementById('n8nErrorMessage').style.display = 'block';
+            document.getElementById('n8nSuccessMessage').style.display = 'none';
         }
         
-        function hideDiscordMessages() {
-            document.getElementById('discordSuccessMessage').style.display = 'none';
-            document.getElementById('discordErrorMessage').style.display = 'none';
+        function hideN8nMessages() {
+            document.getElementById('n8nSuccessMessage').style.display = 'none';
+            document.getElementById('n8nErrorMessage').style.display = 'none';
         }
         
         // Configuration Management Functions
-        function loadDiscordConfig() {
+        function loadN8nConfig() {
             fetch('/api/discord/config')
                 .then(response => response.json())
                 .then(data => {
@@ -395,7 +409,7 @@
                     }
                 })
                 .catch(error => {
-                    console.error('Error loading Discord config:', error);
+                    console.error('Error loading n8n config:', error);
                     document.getElementById('submitUrl').textContent = 'Error loading config';
                     document.getElementById('nocapUrl').textContent = 'Error loading config';
                     document.getElementById('lastUpdated').textContent = 'Error';
@@ -489,7 +503,7 @@
                     }
                     
                     // Reload config display
-                    loadDiscordConfig();
+                    loadN8nConfig();
                 } else {
                     alert(`Error updating URLs: ${data.error}`);
                 }
