@@ -38,10 +38,10 @@ A significantly improved Flask web application for uploading videos from Google 
 - **Client Selection Cards**: Intuitive client selection interface
 - **Loading States**: Clear loading indicators during operations
 - **Responsive Design**: Works on desktop and mobile devices
-- **Tabbed Interface**: Switch between YouTube uploader and Discord jobs
+- **Tabbed Interface**: Switch between YouTube uploader and n8n jobs
 
-### 6. **Discord Integration**
-- **Webhook Support**: Submit jobs to Discord webhooks
+### 6. **n8n Integration**
+- **Webhook Support**: Submit jobs to n8n webhooks
 - **Image & Audio URLs**: Handle 4 image and 4 audio URLs per job
 - **Two Job Types**: Submit Job and No Cap Job endpoints
 - **Error Handling**: Comprehensive error handling for webhook failures
@@ -83,7 +83,7 @@ Web-Api-Sys/
 │   └── css/
 │       └── style.css         # Custom styles
 └── uploads/                  # Temporary file storage
-├── discord_config.json       # Discord webhook configuration
+├── n8n_config.json       # n8n webhook configuration
 └── update_ngrok_urls.py      # Ngrok URL update script
 ```
 
@@ -162,12 +162,12 @@ The application will be available at `http://localhost:5000`
 ### System
 - `GET /health` - Health check endpoint
 
-### Discord Integration
-- `POST /submitjob` - Submit a job to Discord webhook
-- `POST /nocapjob` - Submit a nocap job to Discord webhook
-- `GET /discord-jobs` - Discord job submission page
-- `GET /api/discord/config` - Get current webhook configuration
-- `POST /api/discord/config` - Update webhook URLs
+### n8n Integration
+- `POST /submitjob` - Submit a job to n8n webhook
+- `POST /nocapjob` - Submit a nocap job to n8n webhook
+- `GET /n8n-jobs` - n8n job submission page
+- `GET /api/n8n/config` - Get current webhook configuration
+- `POST /api/n8n/config` - Update webhook URLs
 
 ## 🎯 Usage Workflow
 
@@ -180,8 +180,8 @@ The application will be available at `http://localhost:5000`
 6. **Upload**: Click upload and monitor progress
 7. **Review Results**: View upload results and updated quota status
 
-### Discord Jobs
-1. **Switch to Discord Tab**: Click the "Discord Jobs" tab
+### n8n Jobs
+1. **Switch to n8n Tab**: Click the "n8n Jobs" tab
 2. **Enter User**: Provide the username for the job
 3. **Add Images**: Enter 4 image URLs (required)
 4. **Add Audio**: Enter 4 audio URLs (required)
@@ -189,7 +189,7 @@ The application will be available at `http://localhost:5000`
 6. **Monitor Response**: View success/error messages from webhook
 
 ### Ngrok URL Management
-1. **View Current URLs**: Check the webhook configuration section in the Discord tab
+1. **View Current URLs**: Check the webhook configuration section in the n8n tab
 2. **Update URLs**: Click "Update URLs" button to open the configuration modal
 3. **Enter New Base URL**: Provide your new ngrok base URL (e.g., `https://abc123.ngrok-free.app`)
 4. **Auto-Generation**: The system automatically constructs the full webhook URLs
@@ -229,8 +229,8 @@ REDIRECT_URI=http://localhost:8080/
 - **Channel List Cost**: 1 point per request
 - **Video Info Cost**: 1 point per request
 
-### Discord Configuration
-The Discord webhook URLs are stored in `discord_config.json`:
+### n8n Configuration
+The n8n webhook URLs are stored in `n8n_config.json`:
 ```json
 {
   "webhook_urls": {
@@ -243,9 +243,9 @@ The Discord webhook URLs are stored in `discord_config.json`:
 ```
 
 **Updating Ngrok URLs:**
-- **Web Interface**: Use the "Update URLs" button in the Discord tab
+- **Web Interface**: Use the "Update URLs" button in the n8n tab
 - **Command Line**: Run `python update_ngrok_urls.py`
-- **Manual**: Edit `discord_config.json` directly
+- **Manual**: Edit `n8n_config.json` directly
 
 ## 🔄 Migration from v1
 

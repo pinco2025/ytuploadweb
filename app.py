@@ -417,14 +417,14 @@ def nocap_job():
         logger.error(f"Error in nocap_job: {e}")
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
-@app.route('/discord')
-def discord_jobs():
-    """Discord job submission page."""
-    return render_template('discord.html')
+@app.route('/n8n')
+def n8n_jobs():
+    """N8N job submission page."""
+    return render_template('n8n.html')
 
-@app.route('/api/discord/config', methods=['GET'])
-def get_discord_config():
-    """Get current Discord webhook configuration."""
+@app.route('/api/n8n/config', methods=['GET'])
+def get_n8n_config():
+    """Get current n8n webhook configuration."""
     try:
         urls = n8n_service.get_current_urls()
         return jsonify({
@@ -435,42 +435,36 @@ def get_discord_config():
             }
         })
     except Exception as e:
-        logger.error(f"Error getting Discord config: {e}")
+        logger.error(f"Error getting n8n config: {e}")
         return jsonify({
             "success": False,
             "error": str(e)
         }), 500
 
-@app.route('/api/discord/config', methods=['POST'])
-def update_discord_config():
-    """Update Discord webhook URLs."""
+@app.route('/api/n8n/config', methods=['POST'])
+def update_n8n_config():
+    """Update n8n webhook URLs."""
     try:
         data = request.get_json()
-        
         if not data:
             return jsonify({"error": "No JSON data provided"}), 400
-        
         submit_url = data.get('submit_job_url')
         nocap_url = data.get('nocap_job_url')
-        
         if not submit_url or not nocap_url:
             return jsonify({"error": "Both submit_job_url and nocap_job_url are required"}), 400
-        
         success = n8n_service.update_webhook_urls(submit_url, nocap_url)
-        
         if success:
             return jsonify({
                 "success": True,
-                "message": "Discord webhook URLs updated successfully"
+                "message": "n8n webhook URLs updated successfully"
             })
         else:
             return jsonify({
                 "success": False,
-                "error": "Failed to update Discord webhook URLs"
+                "error": "Failed to update n8n webhook URLs"
             }), 500
-            
     except Exception as e:
-        logger.error(f"Error updating Discord config: {e}")
+        logger.error(f"Error updating n8n config: {e}")
         return jsonify({
             "success": False,
             "error": str(e)

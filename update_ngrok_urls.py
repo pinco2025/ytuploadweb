@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Simple script to update ngrok URLs in the Discord configuration.
+Simple script to update ngrok URLs in the n8n configuration.
 Run this script when your ngrok URLs change daily.
 """
 
@@ -9,9 +9,9 @@ import requests
 from datetime import datetime
 
 def update_ngrok_urls():
-    """Update ngrok URLs in Discord configuration."""
+    """Update ngrok URLs in n8n configuration."""
     
-    print("🔄 Discord Webhook URL Updater")
+    print("🔄 n8n Webhook URL Updater")
     print("=" * 40)
     
     # Get new URLs from user
@@ -54,7 +54,7 @@ def update_ngrok_urls():
             "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
         
-        with open('discord_config.json', 'w') as f:
+        with open('n8n_config.json', 'w') as f:
             json.dump(config, f, indent=2)
         
         print("✅ Configuration updated successfully!")
@@ -126,7 +126,7 @@ def show_current_config():
     """Show current configuration."""
     
     try:
-        with open('discord_config.json', 'r') as f:
+        with open('n8n_config.json', 'r') as f:
             config = json.load(f)
         
         print("📋 Current Configuration:")
