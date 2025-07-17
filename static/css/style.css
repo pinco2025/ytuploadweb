@@ -458,5 +458,31 @@ a:hover {
 }
 
 .video-details strong {
-  color: var(--text-primary);
+  color: var(--primary-color);
+}
+
+.auth-callback {
+  text-align: center;
+  padding: 3rem 2rem;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.auth-callback h1 {
+  color: var(--success-color);
+  margin-bottom: 1.5rem;
+  font-size: 2rem;
+}
+
+.auth-callback p {
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+  font-size: 1.1rem;
+  line-height: 1.6;
+}
+
+.auth-callback .btn {
+  margin-top: 2rem;
+  font-size: 1.1rem;
+  padding: 1rem 2rem;
 }

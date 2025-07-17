@@ -2,6 +2,7 @@ import os
 import json
 import pickle
 import logging
+import webbrowser
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 from google.oauth2.credentials import Credentials
@@ -14,6 +15,9 @@ from config import Config
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+class AuthRequired(Exception):
+    pass
 
 class AuthManager:
     """Manages authentication for multiple YouTube clients and channels."""
@@ -101,36 +105,7 @@ class AuthManager:
             
             # If no valid credentials, authenticate
             if not creds:
-                client_config = {
-                    "installed": {
-                        "client_id": client['client_id'],
-                        "client_secret": client['client_secret'],
-                        "auth_uri": Config.AUTH_URI,
-                        "token_uri": Config.TOKEN_URI,
-                        "auth_provider_x509_cert_url": Config.AUTH_PROVIDER_X509_CERT_URL,
-                        "redirect_uris": ["http://localhost"]
-                    }
-                }
-                flow = InstalledAppFlow.from_client_config(
-                    client_config,
-                    scopes=scopes
-                )
-                # Always force consent and offline access to get refresh token
-                auth_url, _ = flow.authorization_url(
-                    access_type='offline',
-                    prompt='consent',
-                    include_granted_scopes='true'
-                )
-                print(f"Please go to this URL and authorize access: {auth_url}")
-                flow.fetch_token(authorization_response=input("Enter the full redirect URL after authorization: "))
-                creds = flow.credentials
-                # Save credentials
-                with open(token_path, 'wb') as token:
-                    pickle.dump(creds, token)
-                logger.info(f"New authentication completed for client {client_id}")
-            # Warn if refresh token is missing
-            if creds and not getattr(creds, 'refresh_token', None):
-                logger.warning(f"No refresh token present for client {client_id}. You may need to re-authenticate with prompt='consent'.")
+                raise AuthRequired(f"Authentication required for client {client_id}")
             
             self.active_client_id = client_id
             return True, f"Successfully authenticated client {client_id}"
@@ -327,3 +302,62 @@ class AuthManager:
             'last_reset': quota_data['last_reset'],
             'operations': quota_data['operations']
         } 
+
+    def generate_oauth_url(self, client_id: str) -> Tuple[bool, str]:
+        """Generate OAuth URL for manual authentication and display it in terminal."""
+        try:
+            client = self.get_client_by_id(client_id)
+            if not client:
+                return False, f"Client {client_id} not found"
+            
+            scopes = [
+                'https://www.googleapis.com/auth/youtube.upload',
+                'https://www.googleapis.com/auth/youtube.readonly'
+            ]
+            
+            client_config = {
+                "installed": {
+                    "client_id": client['client_id'],
+                    "client_secret": client['client_secret'],
+                    "auth_uri": Config.AUTH_URI,
+                    "token_uri": Config.TOKEN_URI,
+                    "auth_provider_x509_cert_url": Config.AUTH_PROVIDER_X509_CERT_URL,
+                    "redirect_uris": ["http://localhost:5000/oauth2callback"]  # Back to HTTP
+                }
+            }
+            
+            flow = InstalledAppFlow.from_client_config(
+                client_config,
+                scopes=scopes
+            )
+            
+            # Generate authorization URL
+            auth_url, _ = flow.authorization_url(
+                access_type='offline',
+                prompt='consent',
+                include_granted_scopes='true'
+            )
+            
+            # Display in terminal with formatting
+            print(f"\n{'='*80}")
+            print(f"🔐 OAuth URL for client {client_id}:")
+            print(f"{'='*80}")
+            print(f"URL: {auth_url}")
+            print(f"{'='*80}")
+            print("🌐 Opening browser automatically...")
+            print(f"{'='*80}\n")
+            
+            # Try to open browser automatically
+            try:
+                webbrowser.open(auth_url)
+                print("✅ Browser opened successfully!")
+            except Exception as e:
+                print(f"❌ Failed to open browser automatically: {e}")
+                print("📋 Please copy and paste the URL above into your browser manually.")
+            
+            return True, auth_url
+            
+        except Exception as e:
+            error_msg = f"Failed to generate OAuth URL: {str(e)}"
+            logger.error(error_msg)
+            return False, error_msg 

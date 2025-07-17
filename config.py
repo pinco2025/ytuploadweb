@@ -1,4 +1,5 @@
 import os
+os.environ['REDIRECT_URI'] = 'http://localhost:5000/oauth2callback'
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -17,7 +18,7 @@ class Config:
     YOUTUBE_CHANNEL_ID = os.environ.get('YOUTUBE_CHANNEL_ID')
     
     # OAuth2 settings
-    REDIRECT_URI = os.environ.get('REDIRECT_URI') or 'http://localhost:8080/'
+    REDIRECT_URI = os.environ.get('REDIRECT_URI') or 'http://localhost:5000/oauth2callback'
     AUTH_URI = os.environ.get('AUTH_URI') or 'https://accounts.google.com/o/oauth2/auth'
     TOKEN_URI = os.environ.get('TOKEN_URI') or 'https://oauth2.googleapis.com/token'
     AUTH_PROVIDER_X509_CERT_URL = os.environ.get('AUTH_PROVIDER_X509_CERT_URL') or 'https://www.googleapis.com/oauth2/v1/certs'

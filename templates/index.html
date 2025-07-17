@@ -113,10 +113,20 @@
                                                                     <i class="fas fa-upload me-1"></i>{{ client.upload_count }} uploads
                                                                 </p>
                                                             </div>
-                                                            <button class="btn btn-sm btn-outline-primary select-client-btn" 
-                                                                    data-client-id="{{ client.id }}">
-                                                                <i class="fas fa-check me-1"></i>Select
-                                                            </button>
+                                                            <div class="d-flex gap-2">
+                                                                <button class="btn btn-sm btn-outline-primary select-client-btn" 
+                                                                        data-client-id="{{ client.id }}">
+                                                                    <i class="fas fa-check me-1"></i>Select
+                                                                </button>
+                                                                <a href="/auth/{{ client.id }}" class="btn btn-sm btn-outline-success" 
+                                                                   target="_blank" title="Authenticate with Google">
+                                                                    <i class="fas fa-key me-1"></i>Auth
+                                                                </a>
+                                                                <a href="/auth-terminal/{{ client.id }}" class="btn btn-sm btn-outline-info" 
+                                                                   title="Show auth URL in terminal">
+                                                                    <i class="fas fa-terminal me-1"></i>Terminal
+                                                                </a>
+                                                            </div>
                                                         </div>
                                                         
                                                         <!-- Quota Status -->
@@ -276,6 +286,39 @@
         document.addEventListener('DOMContentLoaded', function() {
             initializePage();
             setupEventListeners();
+            
+            // Handle terminal auth links
+            document.querySelectorAll('a[href^="/auth-terminal/"]').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const clientId = this.getAttribute('href').split('/').pop();
+                    
+                    // Show loading state
+                    this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Loading...';
+                    this.disabled = true;
+                    
+                    // Call the terminal auth endpoint
+                    fetch(this.getAttribute('href'))
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                // Show success notification
+                                showNotification('✅ OAuth URL displayed in terminal! Check your console.', 'success');
+                            } else {
+                                showNotification('❌ Error: ' + data.error, 'error');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            showNotification('❌ Error calling auth endpoint', 'error');
+                        })
+                        .finally(() => {
+                            // Reset button state
+                            this.innerHTML = '<i class="fas fa-terminal me-1"></i>Terminal';
+                            this.disabled = false;
+                        });
+                });
+            });
         });
         
         function initializePage() {
@@ -494,6 +537,28 @@
             
             // Submit the form
             e.target.submit();
+        }
+
+        function showNotification(message, type = 'info') {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.className = `alert alert-${type === 'error' ? 'danger' : 'success'} alert-dismissible fade show position-fixed`;
+            notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+            notification.innerHTML = `
+                <i class="fas fa-${type === 'error' ? 'exclamation-triangle' : 'check-circle'} me-2"></i>
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            
+            // Add to page
+            document.body.appendChild(notification);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.remove();
+                }
+            }, 5000);
         }
     </script>
 </body>

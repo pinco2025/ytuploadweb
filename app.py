@@ -3,6 +3,7 @@ import os
 import uuid
 import tempfile
 import logging
+import webbrowser
 from typing import Dict, List, Optional
 from google_drive_service import GoogleDriveService
 from youtube_service import YouTubeServiceV2
@@ -12,6 +13,10 @@ from n8n_service import N8nService
 from config import Config
 import requests
 import json
+import urllib.parse
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+import pickle
 
 # Configure logging
 logging.basicConfig(
@@ -553,6 +558,160 @@ def drive_job():
         })
     else:
         return jsonify({'success': False, 'message': f'Webhook error: {resp.text}'}), 500
+
+@app.route('/auth/<client_id>')
+def auth_redirect(client_id):
+    am = AuthManager()
+    client = am.get_client_by_id(client_id)
+    if not client:
+        return "Client not found", 404
+    scopes = [
+        'https://www.googleapis.com/auth/youtube.upload',
+        'https://www.googleapis.com/auth/youtube.readonly'
+    ]
+    base_url = "https://accounts.google.com/o/oauth2/auth"
+    params = {
+        'response_type': 'code',
+        'client_id': client['client_id'],
+        'redirect_uri': 'http://localhost:5000/oauth2callback',  # Back to HTTP
+        'scope': ' '.join(scopes),
+        'access_type': 'offline',
+        'prompt': 'consent',
+        'include_granted_scopes': 'true'
+    }
+    auth_url = f"{base_url}?{urllib.parse.urlencode(params)}"
+    
+    # Print the URL to terminal
+    print(f"\n{'='*80}")
+    print(f"🔐 OAuth URL for client {client_id}:")
+    print(f"{'='*80}")
+    print(f"URL: {auth_url}")
+    print(f"{'='*80}")
+    print("🌐 Opening browser automatically...")
+    print(f"{'='*80}\n")
+    
+    # Automatically open the URL in the default browser
+    try:
+        webbrowser.open(auth_url)
+        print("✅ Browser opened successfully!")
+    except Exception as e:
+        print(f"❌ Failed to open browser automatically: {e}")
+        print("📋 Please copy and paste the URL above into your browser manually.")
+    
+    return redirect(auth_url)
+
+@app.route('/auth-terminal/<client_id>')
+def auth_terminal(client_id):
+    """Generate OAuth URL and display it in terminal with browser opening."""
+    try:
+        success, result = auth_manager.generate_oauth_url(client_id)
+        if success:
+            return jsonify({
+                "success": True,
+                "message": "OAuth URL generated and displayed in terminal",
+                "url": result
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "error": result
+            }), 400
+    except Exception as e:
+        logger.error(f"Error in auth_terminal: {e}")
+        return jsonify({
+            "success": False,
+            "error": f"Internal server error: {str(e)}"
+        }), 500
+
+@app.route('/oauth2callback')
+def oauth2callback():
+    """OAuth2 callback route for Google authentication."""
+    try:
+        # Get the authorization code from the URL parameters
+        auth_code = request.args.get('code')
+        state = request.args.get('state')
+        error = request.args.get('error')
+        
+        # Log the callback parameters for debugging
+        logger.info(f"OAuth callback received - code: {auth_code[:20] if auth_code else 'None'}..., state: {state}, error: {error}")
+        
+        if error:
+            logger.error(f"OAuth error: {error}")
+            flash(f'OAuth error: {error}', 'error')
+            return redirect(url_for('index'))
+        
+        if not auth_code:
+            logger.error("No authorization code received")
+            flash('No authorization code received from Google', 'error')
+            return redirect(url_for('index'))
+        
+        # For now, we need to determine which client this is for
+        # Since we don't have state parameter tracking, we'll need to handle this differently
+        # Let's create a simple token exchange for the first client
+        
+        # Get the first client (you can improve this by adding state tracking)
+        clients = auth_manager.get_all_clients()
+        if not clients:
+            flash('No clients configured', 'error')
+            return redirect(url_for('index'))
+        
+        client = clients[0]  # Use first client for now
+        client_id = client['id']
+        
+        logger.info(f"Processing OAuth callback for client: {client_id}")
+        
+        # Create the OAuth flow to exchange the code for tokens
+        scopes = [
+            'https://www.googleapis.com/auth/youtube.upload',
+            'https://www.googleapis.com/auth/youtube.readonly'
+        ]
+        
+        client_config = {
+            "installed": {
+                "client_id": client['client_id'],
+                "client_secret": client['client_secret'],
+                "auth_uri": Config.AUTH_URI,
+                "token_uri": Config.TOKEN_URI,
+                "auth_provider_x509_cert_url": Config.AUTH_PROVIDER_X509_CERT_URL,
+                "redirect_uris": ["http://localhost:5000/oauth2callback"]  # Back to HTTP
+            }
+        }
+        
+        flow = InstalledAppFlow.from_client_config(
+            client_config,
+            scopes=scopes
+        )
+        
+        # Exchange the authorization code for tokens
+        # We need to construct the authorization response URL
+        authorization_response = request.url
+        
+        logger.info(f"Exchanging authorization code for tokens...")
+        
+        flow.fetch_token(
+            authorization_response=authorization_response,
+            redirect_uri="http://localhost:5000/oauth2callback"  # Back to HTTP
+        )
+        
+        # Get the credentials from the flow
+        credentials = flow.credentials
+        
+        # Save the credentials to a pickle file
+        token_path = os.path.join('tokens', f'token_{client_id}.pickle')
+        os.makedirs('tokens', exist_ok=True)
+        
+        with open(token_path, 'wb') as token_file:
+            pickle.dump(credentials, token_file)
+        
+        logger.info(f"✅ Successfully saved tokens for client {client_id} to {token_path}")
+        
+        flash(f'✅ Successfully authenticated client {client_id}!', 'success')
+        return render_template('oauth_callback.html', success=True, client_id=client_id)
+        
+    except Exception as e:
+        logger.error(f"Error in OAuth callback: {e}")
+        flash(f'OAuth callback error: {str(e)}', 'error')
+        return redirect(url_for('index'))
 
 @app.errorhandler(404)
 def not_found(error):
