@@ -66,10 +66,10 @@ if app.config['ENABLE_DISCORD_JOB']:
         if not message_link or not bot_token:
             return jsonify({'success': False, 'message': 'Missing message link or bot token.'}), 400
 
-        # Parse channel_id and message_id from the link (remove validity check)
+        # Extract channel_id and message_id by splitting, no link checking
         parts = message_link.split('/')
-        channel_id = parts[-2]
-        message_id = parts[-1]
+        channel_id = parts[-2] if len(parts) >= 2 else ''
+        message_id = parts[-1] if len(parts) >= 1 else ''
 
         # Fetch the message from Discord API
         url = f'https://discord.com/api/v10/channels/{channel_id}/messages/{message_id}'
