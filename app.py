@@ -16,6 +16,7 @@ import urllib.parse
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 import pickle
+from google_drive_service import GoogleDriveService
 
 # Allow OAuth2 to work with HTTP for localhost development
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
@@ -41,6 +42,7 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 auth_manager = AuthManager()
 youtube_service = YouTubeServiceV2(auth_manager)
 n8n_service = N8nService()
+drive_service = GoogleDriveService()
 
 # --- Flask Application for YouTube Shorts Uploader and n8n Integration ---
 #
