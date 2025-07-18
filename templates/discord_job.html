@@ -70,8 +70,10 @@ document.getElementById('discordJobForm').addEventListener('submit', function(e)
     var messageLinkError = document.getElementById('message_link_error');
     statusArea.innerHTML = '';
     messageLinkError.textContent = '';
-    // Validate Discord message link format
-    var discordMsgRegex = /^https:\/\/discord\.com\/channels\/\d+\/\d+\/\d+$/;
+    // Accept both discord.com and discordapp.com links
+    messageLink = messageLink.replace('discordapp.com', 'discord.com');
+    // Validate Discord message link format (accept both domains)
+    var discordMsgRegex = /^https:\/\/(discord(app)?\.com)\/channels\/\d+\/\d+\/\d+$/;
     if (!discordMsgRegex.test(messageLink)) {
         messageLinkError.textContent = 'Please enter a valid Discord message link.';
         return;
