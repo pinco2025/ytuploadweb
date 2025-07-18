@@ -66,6 +66,13 @@ if app.config['ENABLE_DISCORD_JOB']:
         if not message_link or not bot_token:
             return jsonify({'success': False, 'message': 'Missing message link or bot token.'}), 400
 
+        # Accept both discord.com and discordapp.com links
+        if 'discordapp.com' in message_link:
+            message_link = message_link.replace('discordapp.com', 'discord.com')
+        if message_link.startswith('discord://'):
+            message_link = message_link.replace('discord://discord', 'https://discord.com')
+            message_link = message_link.replace('discord://', 'https://discord.com/')
+
         # Extract channel_id and message_id by splitting, no link checking
         parts = message_link.split('/')
         channel_id = parts[-2] if len(parts) >= 2 else ''
