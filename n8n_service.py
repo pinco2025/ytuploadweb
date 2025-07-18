@@ -8,9 +8,10 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 class N8nService:
-    """Service for handling n8n webhook operations."""
+    """Service for handling n8n webhook operations: config, job submission, and error handling."""
     
     def __init__(self):
+        """Initialize the n8n service and load webhook configuration from file."""
         self.config_file = "n8n_config.json"
         self.submit_webhook_url = None
         self.nocap_webhook_url = None
@@ -18,7 +19,7 @@ class N8nService:
         self.load_config()
     
     def load_config(self):
-        """Load webhook URLs from configuration file."""
+        """Load webhook URLs and settings from the n8n_config.json file."""
         try:
             if os.path.exists(self.config_file):
                 with open(self.config_file, 'r') as f:
@@ -40,7 +41,7 @@ class N8nService:
             raise
     
     def update_webhook_urls(self, submit_url: str, nocap_url: str):
-        """Update webhook URLs in configuration file."""
+        """Update webhook URLs in the config file and reload settings."""
         try:
             config = {
                 "webhook_urls": {
@@ -65,17 +66,14 @@ class N8nService:
             return False
     
     def get_current_urls(self) -> Dict[str, Optional[str]]:
-        """Get current webhook URLs."""
+        """Return the current webhook URLs as a dict."""
         return {
             "submit_job": self.submit_webhook_url,
             "nocap_job": self.nocap_webhook_url
         }
     
     def submit_job(self, user: str, images: List[str], audios: List[str]) -> Tuple[bool, str, Optional[int]]:
-        """
-        Submit a job to the n8n webhook.
-        Returns: (success, message, status_code)
-        """
+        """Submit a job to the n8n webhook. Returns (success, message, status_code)."""
         if not self.submit_webhook_url:
             return False, "n8n webhook URL not configured", None
             
@@ -125,10 +123,7 @@ class N8nService:
             return False, error_msg, None
     
     def nocap_job(self, user: str, images: List[str], audios: List[str]) -> Tuple[bool, str, Optional[int]]:
-        """
-        Submit a nocap job to the n8n webhook.
-        Returns: (success, message, status_code)
-        """
+        """Submit a nocap job to the n8n webhook. Returns (success, message, status_code)."""
         if not self.nocap_webhook_url:
             return False, "n8n webhook URL not configured", None
             

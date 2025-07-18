@@ -9,7 +9,7 @@ class ValidationError(Exception):
     pass
 
 class InputValidator:
-    """Handles validation of all user inputs."""
+    """Handles validation of all user inputs for uploads, links, and metadata."""
     
     # Supported video formats
     SUPPORTED_VIDEO_FORMATS = {
@@ -25,10 +25,7 @@ class InputValidator:
     
     @staticmethod
     def validate_google_drive_link(drive_link: str) -> Tuple[bool, str, Optional[str]]:
-        """
-        Validate Google Drive link and extract file ID.
-        Returns: (is_valid, error_message, file_id)
-        """
+        """Validate a Google Drive link and extract the file ID. Returns (is_valid, error_message, file_id)."""
         if not drive_link:
             return False, "Google Drive link is required", None
         
@@ -72,7 +69,7 @@ class InputValidator:
     
     @staticmethod
     def validate_video_title(title: str) -> Tuple[bool, str]:
-        """Validate video title."""
+        """Validate a video title for YouTube upload. Returns (is_valid, error_message)."""
         if not title:
             return False, "Video title is required"
         
@@ -97,7 +94,7 @@ class InputValidator:
     
     @staticmethod
     def validate_description(description: str) -> Tuple[bool, str]:
-        """Validate video description."""
+        """Validate a video description for YouTube upload. Returns (is_valid, error_message)."""
         if not description:
             return True, ""  # Description is optional
         
@@ -113,10 +110,7 @@ class InputValidator:
     
     @staticmethod
     def validate_hashtags(hashtags: str) -> Tuple[bool, str, List[str]]:
-        """
-        Validate and parse hashtags.
-        Returns: (is_valid, error_message, parsed_hashtags)
-        """
+        """Validate and parse hashtags. Returns (is_valid, error_message, parsed_hashtags)."""
         if not hashtags:
             return True, "", []
         
@@ -156,7 +150,7 @@ class InputValidator:
     
     @staticmethod
     def validate_privacy_setting(privacy: str) -> Tuple[bool, str]:
-        """Validate privacy setting."""
+        """Validate the privacy setting for a YouTube video. Returns (is_valid, error_message)."""
         valid_privacy_settings = ['private', 'unlisted', 'public']
         
         if not privacy:
@@ -169,7 +163,7 @@ class InputValidator:
     
     @staticmethod
     def validate_client_id(client_id: str, available_clients: List[Dict]) -> Tuple[bool, str]:
-        """Validate client ID against available clients."""
+        """Validate a client ID against the list of available clients. Returns (is_valid, error_message)."""
         if not client_id:
             return False, "Client ID is required"
         
@@ -185,7 +179,7 @@ class InputValidator:
     
     @staticmethod
     def validate_channel_id(channel_id: str, available_channels: List[Dict]) -> Tuple[bool, str]:
-        """Validate channel ID against available channels."""
+        """Validate a channel ID against the list of available channels. Returns (is_valid, error_message)."""
         if not channel_id:
             return False, "Channel ID is required"
         
@@ -201,7 +195,7 @@ class InputValidator:
     
     @staticmethod
     def validate_file_path(file_path: str) -> Tuple[bool, str]:
-        """Validate local file path."""
+        """Validate a local file path for upload. Returns (is_valid, error_message)."""
         if not file_path:
             return False, "File path is required"
         
@@ -228,7 +222,7 @@ class InputValidator:
     
     @staticmethod
     def sanitize_text(text: str) -> str:
-        """Sanitize text input to prevent XSS and other attacks."""
+        """Sanitize text input to prevent XSS and other attacks. Returns cleaned text."""
         if not text:
             return ""
         
@@ -247,10 +241,7 @@ class InputValidator:
     
     @staticmethod
     def validate_upload_form_data(form_data: Dict, available_clients: List[Dict], available_channels: List[Dict]) -> Tuple[bool, str, Dict]:
-        """
-        Validate all upload form data at once.
-        Returns: (is_valid, error_message, cleaned_data)
-        """
+        """Validate all upload form data at once. Returns (is_valid, error_message, cleaned_data)."""
         cleaned_data = {}
         
         # Validate Google Drive link

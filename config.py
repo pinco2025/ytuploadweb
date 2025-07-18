@@ -1,9 +1,15 @@
+"""
+Configuration module for Flask app and Google/YouTube API settings.
+Loads environment variables and provides a Config class for Flask.
+"""
+
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
 class Config:
+    """Flask and API configuration loaded from environment variables or defaults."""
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'your-secret-key-here'
     
     # Google API Project
@@ -25,3 +31,7 @@ class Config:
     # Upload settings
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024 * 1024  # 16GB max file size
     UPLOAD_FOLDER = 'uploads'
+
+    ENABLE_N8N_JOBS = os.environ.get('ENABLE_N8N_JOBS', 'true').lower() == 'true'
+    ENABLE_DISCORD_JOB = os.environ.get('ENABLE_DISCORD_JOB', 'true').lower() == 'true'
+    ENABLE_YOUTUBE_UPLOAD = os.environ.get('ENABLE_YOUTUBE_UPLOAD', 'true').lower() == 'true'

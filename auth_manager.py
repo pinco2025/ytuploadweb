@@ -19,7 +19,7 @@ class AuthRequired(Exception):
     pass
 
 class AuthManager:
-    """Manages authentication for multiple YouTube clients and channels."""
+    """Manages authentication, token storage, and quota for multiple YouTube clients and channels."""
     
     def __init__(self, clients_file='clients.json'):
         self.clients_file = clients_file
@@ -34,12 +34,12 @@ class AuthManager:
         self.last_quota_reset = datetime.now()
         
     def _ensure_tokens_dir(self):
-        """Ensure tokens directory exists."""
+        """Ensure the tokens directory exists for storing OAuth tokens and quota files."""
         if not os.path.exists(self.tokens_dir):
             os.makedirs(self.tokens_dir)
     
     def _load_clients(self) -> List[Dict]:
-        """Load clients from configuration file."""
+        """Load OAuth client configurations from the clients.json file."""
         try:
             if os.path.exists(self.clients_file):
                 with open(self.clients_file, 'r') as f:
@@ -52,23 +52,23 @@ class AuthManager:
             return []
     
     def get_client_by_id(self, client_id: str) -> Optional[Dict]:
-        """Get client configuration by ID."""
+        """Return the client configuration dict for a given client_id, or None if not found."""
         return next((client for client in self.clients if client['id'] == client_id), None)
     
     def get_all_clients(self) -> List[Dict]:
-        """Get all available clients."""
+        """Return a list of all configured OAuth clients."""
         return self.clients
     
     def _get_token_path(self, client_id: str) -> str:
-        """Get token file path for a client."""
+        """Return the file path for the OAuth token pickle for a given client."""
         return os.path.join(self.tokens_dir, f'token_{client_id}.pickle')
     
     def _get_quota_path(self, client_id: str) -> str:
-        """Get quota tracking file path for a client."""
+        """Return the file path for the quota tracking JSON for a given client."""
         return os.path.join(self.tokens_dir, f'quota_{client_id}.json')
     
     def authenticate_client(self, client_id: str) -> Tuple[bool, str]:
-        """Authenticate a specific client and return (success, message)."""
+        """Authenticate a client by loading or refreshing its OAuth token. Returns (success, message)."""
         try:
             client = self.get_client_by_id(client_id)
             if not client:
@@ -114,7 +114,7 @@ class AuthManager:
             return False, f"Authentication failed: {str(e)}"
     
     def get_channels_for_client(self, client_id: str) -> Tuple[List[Dict], str]:
-        """Get channels available for a specific client."""
+        """Return a list of YouTube channels for the given client, or an error message."""
         try:
             # Authenticate client first
             success, message = self.authenticate_client(client_id)
@@ -162,7 +162,7 @@ class AuthManager:
             return [], error_msg
     
     def switch_client(self, client_id: str) -> Tuple[bool, str]:
-        """Switch to a different client."""
+        """Switch the active client to the given client_id. Returns (success, message)."""
         try:
             success, message = self.authenticate_client(client_id)
             if success:
@@ -178,7 +178,7 @@ class AuthManager:
             return False, error_msg
     
     def switch_channel(self, client_id: str, channel_id: str) -> Tuple[bool, str]:
-        """Switch to a specific channel for a client."""
+        """Switch the active channel for a client. Returns (success, message)."""
         try:
             # First switch to the client
             success, message = self.switch_client(client_id)
@@ -205,7 +205,7 @@ class AuthManager:
             return False, error_msg
     
     def get_active_credentials(self) -> Optional[Credentials]:
-        """Get credentials for the currently active client."""
+        """Return the OAuth credentials for the currently active client, or None if not authenticated."""
         if not self.active_client_id:
             return None
         
@@ -221,7 +221,7 @@ class AuthManager:
             return None
     
     def get_active_client_info(self) -> Optional[Dict]:
-        """Get information about the currently active client."""
+        """Return a dict with info about the currently active client and channel, or None if not set."""
         if not self.active_client_id:
             return None
         
@@ -235,7 +235,7 @@ class AuthManager:
         return None
     
     def check_quota(self, client_id: str) -> Dict:
-        """Check API quota usage for a client."""
+        """Return the quota usage dict for a client, resetting if a new day has started."""
         quota_path = self._get_quota_path(client_id)
         
         try:
@@ -269,7 +269,7 @@ class AuthManager:
             }
     
     def update_quota(self, client_id: str, operation: str, cost: int = 1):
-        """Update quota usage for a client."""
+        """Increment quota usage for a client and operation by the given cost."""
         quota_data = self.check_quota(client_id)
         quota_data['used_quota'] += cost
         
@@ -285,12 +285,12 @@ class AuthManager:
             logger.error(f"Error updating quota for {client_id}: {e}")
     
     def can_make_request(self, client_id: str, operation: str, cost: int = 1) -> bool:
-        """Check if a client can make an API request without exceeding quota."""
+        """Return True if the client has enough quota left for the operation, else False."""
         quota_data = self.check_quota(client_id)
         return quota_data['used_quota'] + cost <= quota_data['daily_quota']
     
     def get_quota_status(self, client_id: str) -> Dict:
-        """Get detailed quota status for a client."""
+        """Return a summary dict of quota status for a client."""
         quota_data = self.check_quota(client_id)
         return {
             'client_id': client_id,
@@ -303,7 +303,7 @@ class AuthManager:
         } 
 
     def generate_oauth_url(self, client_id: str) -> Tuple[bool, str]:
-        """Generate OAuth URL for manual authentication and display it in terminal."""
+        """Generate and print an OAuth URL for manual authentication for a client. Returns (success, url or error)."""
         try:
             client = self.get_client_by_id(client_id)
             if not client:

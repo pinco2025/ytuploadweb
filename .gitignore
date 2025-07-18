@@ -147,7 +147,7 @@ credentials.json
 discord_config.json
 
 # OAuth tokens and quota files
-tokens/
+/tokens/
 *.pickle
 
 # Environment variables

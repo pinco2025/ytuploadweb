@@ -12,16 +12,17 @@ from validators import InputValidator
 logger = logging.getLogger(__name__)
 
 class YouTubeServiceV2:
-    """Improved YouTube service with multi-client support and better error handling."""
+    """Service for uploading videos to YouTube, managing quota, and handling multi-client/channel logic."""
     
     def __init__(self, auth_manager: AuthManager):
+        """Initialize with an AuthManager for client/channel switching and credential management."""
         self.auth_manager = auth_manager
         self.service = None
         self.current_client_id = None
         self.current_channel_id = None
         
     def _get_service(self, client_id: str):
-        """Get YouTube service for a specific client."""
+        """Get a YouTube API service object for a specific client, switching if needed."""
         try:
             # Switch to the specified client
             success, message = self.auth_manager.switch_client(client_id)
@@ -45,7 +46,7 @@ class YouTubeServiceV2:
             raise
     
     def get_channels_for_client(self, client_id: str) -> Tuple[List[Dict], str]:
-        """Get channels available for a specific client."""
+        """Return a list of channels for a client, checking quota and updating usage."""
         try:
             # Check quota before making request
             if not self.auth_manager.can_make_request(client_id, 'channels.list', 1):
@@ -63,7 +64,7 @@ class YouTubeServiceV2:
             return [], f"Error getting channels: {str(e)}"
     
     def switch_to_channel(self, client_id: str, channel_id: str) -> Tuple[bool, str]:
-        """Switch to a specific channel for a client."""
+        """Switch to a specific channel for a client, updating internal state."""
         try:
             success, message = self.auth_manager.switch_channel(client_id, channel_id)
             if success:
@@ -78,13 +79,8 @@ class YouTubeServiceV2:
             logger.error(f"Error switching to channel {channel_id} for client {client_id}: {e}")
             return False, f"Error switching channel: {str(e)}"
     
-    def upload_video(self, video_path: str, title: str, description: str, 
-                    tags: Optional[List[str]] = None, privacy_status: str = 'public', 
-                    channel_id: Optional[str] = None, client_id: Optional[str] = None) -> Tuple[bool, str, Optional[Dict]]:
-        """
-        Upload video to YouTube with improved error handling and quota management.
-        Returns: (success, message, response_data)
-        """
+    def upload_video(self, video_path: str, title: str, description: str, tags: Optional[List[str]] = None, privacy_status: str = 'public', channel_id: Optional[str] = None, client_id: Optional[str] = None) -> Tuple[bool, str, Optional[Dict]]:
+        """Upload a video to YouTube with error handling and quota management. Returns (success, message, response_data)."""
         try:
             # Validate inputs
             is_valid, error_msg = InputValidator.validate_file_path(video_path)
@@ -182,7 +178,7 @@ class YouTubeServiceV2:
             return False, error_msg, None
     
     def _resumable_upload(self, insert_request, client_id: str, max_retries: int = 3) -> Optional[Dict]:
-        """Execute resumable upload with improved retry logic and quota management."""
+        """Execute a resumable upload with retry logic and quota management."""
         response = None
         retry_count = 0
         
@@ -234,7 +230,7 @@ class YouTubeServiceV2:
         return response
     
     def get_video_info(self, video_id: str, client_id: Optional[str] = None) -> Tuple[bool, str, Optional[Dict]]:
-        """Get video information with quota management."""
+        """Get video information for a given video ID, checking quota and updating usage."""
         try:
             if not client_id:
                 client_id = self.current_client_id
@@ -271,7 +267,7 @@ class YouTubeServiceV2:
             return False, error_msg, None
     
     def set_thumbnail(self, video_id: str, thumbnail_path: str, client_id: Optional[str] = None) -> Tuple[bool, str]:
-        """Set custom thumbnail for the video."""
+        """Set a custom thumbnail for a video, checking quota and updating usage."""
         try:
             if not client_id:
                 client_id = self.current_client_id
@@ -311,7 +307,7 @@ class YouTubeServiceV2:
             return False, error_msg
     
     def get_quota_status(self, client_id: Optional[str] = None) -> Dict:
-        """Get quota status for a client."""
+        """Return the quota status for a client as a dict."""
         if not client_id:
             client_id = self.current_client_id
         
@@ -321,5 +317,5 @@ class YouTubeServiceV2:
         return self.auth_manager.get_quota_status(client_id)
     
     def get_active_client_info(self) -> Optional[Dict]:
-        """Get information about the currently active client."""
+        """Return info about the currently active client and channel, or None if not set."""
         return self.auth_manager.get_active_client_info() 
