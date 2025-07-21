@@ -110,6 +110,7 @@ if app.config['ENABLE_DISCORD_JOB']:
             message_link = message_link.replace('discord://', 'https://discord.com/')
         message_link = message_link.strip()  # Extra strip after replacements
 
+        parts = message_link.strip('/').split('/')
 
         channel_id = parts[-2] if len(parts) >= 2 else ''
         message_id = parts[-1] if len(parts) >= 1 else ''
