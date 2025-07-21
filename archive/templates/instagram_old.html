@@ -1,0 +1,384 @@
+{% extends "base.html" %}
+{% block title %}Instagram Uploader{% endblock %}
+{% block content %}
+<!-- Main page content follows -->
+        <!-- Instagram Uploader Content -->
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="card">
+                    <div class="card-header bg-gradient-primary text-white">
+                        <h2 class="text-center mb-0">
+                            <i class="fab fa-instagram me-2"></i>Instagram Reels Uploader
+                        </h2>
+                    </div>
+                    <div class="card-body">
+                        <!-- Flash Messages -->
+                        <div id="flashArea"></div>
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                                {% for category, message in messages %}
+                                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+                                        <i class="fas fa-{{ 'exclamation-triangle' if category == 'error' else 'check-circle' }} me-2"></i>
+                                        {{ message }}
+                                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
+                        
+                        <!-- Client Selection -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h5><i class="fas fa-users me-2"></i>Select Instagram Client</h5>
+                                <div class="row" id="clientSelection">
+                                    {% if clients %}
+                                        {% for client in clients %}
+                                            <div class="col-md-6 mb-3">
+                                                <div class="card client-card" data-client-id="{{ client.id }}">
+                                                    <div class="card-body">
+                                                        <div class="d-flex justify-content-between align-items-start">
+                                                            <div>
+                                                                <h6 class="card-title">{{ client.name }}</h6>
+                                                                <p class="card-text text-muted mb-2">
+                                                                    <i class="fas fa-upload me-1"></i>{{ client.upload_count }} uploads
+                                                                </p>
+                                                            </div>
+                                                            <div class="d-flex gap-2">
+                                                                <button class="btn btn-sm btn-outline-primary select-client-btn" 
+                                                                        data-client-id="{{ client.id }}">
+                                                                    <i class="fas fa-check me-1"></i>Select
+                                                                </button>
+                                                                <a href="/instagram/auth/{{ client.id }}" class="btn btn-sm btn-outline-success" 
+                                                                   target="_blank" title="Authenticate with Instagram">
+                                                                    <i class="fab fa-instagram me-1"></i>Auth
+                                                                </a>
+                                                                <a href="/instagram/auth-terminal/{{ client.id }}" class="btn btn-sm btn-outline-info" 
+                                                                   title="Show auth URL in terminal">
+                                                                    <i class="fas fa-terminal me-1"></i>Terminal
+                                                                </a>
+                                                            </div>
+                                                        </div>
+                                                        <!-- Account Status -->
+                                                        <div class="mt-3">
+                                                            <small class="text-muted">
+                                                                <i class="fas fa-info-circle me-1"></i>
+                                                                <span class="account-status" data-client-id="{{ client.id }}">
+                                                                    Loading accounts...
+                                                                </span>
+                                                            </small>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        {% endfor %}
+                                    {% else %}
+                                        <div class="col-12">
+                                            <div class="alert alert-warning">
+                                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                                No Instagram clients configured. Please check your clients.json file.
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Upload Form -->
+                        <form method="POST" id="instagramUploadForm">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <!-- Google Drive Link -->
+                                    <div class="mb-3">
+                                        <label for="drive_link" class="form-label">
+                                            <i class="fas fa-link me-1"></i>Google Drive Link
+                                        </label>
+                                        <input type="url" class="form-control" id="drive_link" name="drive_link" required
+                                               placeholder="https://drive.google.com/file/d/...">
+                                        <div class="validation-error" id="drive_link_error"></div>
+                                        <div class="validation-success" id="drive_link_success"></div>
+                                    </div>
+                                    
+                                    <!-- Caption -->
+                                    <div class="mb-3">
+                                        <label for="caption" class="form-label">
+                                            <i class="fas fa-comment me-1"></i>Caption
+                                        </label>
+                                        <textarea class="form-control" id="caption" name="caption" rows="4"
+                                                  placeholder="Enter your Instagram caption..." maxlength="2200"></textarea>
+                                        <div class="validation-error" id="caption_error"></div>
+                                        <small class="form-text text-muted">
+                                            <span id="caption_count">0</span>/2200 characters
+                                        </small>
+                                    </div>
+                                    
+                                    <!-- Hashtags -->
+                                    <div class="mb-3">
+                                        <label for="hashtags" class="form-label">
+                                            <i class="fas fa-hashtag me-1"></i>Hashtags
+                                        </label>
+                                        <input type="text" class="form-control" id="hashtags" name="hashtags"
+                                               placeholder="#reels #viral #instagram #trending">
+                                        <div class="validation-error" id="hashtags_error"></div>
+                                        <small class="form-text text-muted">
+                                            Separate hashtags with spaces or commas (max 20 hashtags)
+                                        </small>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-4">
+                                    <!-- Account Selection -->
+                                    <div class="mb-3">
+                                        <label for="account" class="form-label">
+                                            <i class="fab fa-instagram me-1"></i>Instagram Account
+                                        </label>
+                                        <select class="form-select account-select" id="account" name="account" required>
+                                            <option value="">Select a client first</option>
+                                        </select>
+                                        <div class="validation-error" id="account_error"></div>
+                                        <small class="form-text text-muted">Select which Instagram account to upload to</small>
+                                    </div>
+                                    
+                                    <!-- Upload Button -->
+                                    <div class="d-grid">
+                                        <button type="submit" class="btn btn-gradient-primary btn-lg" id="uploadBtn">
+                                            <i class="fab fa-instagram me-2"></i>Upload to Instagram
+                                        </button>
+                                    </div>
+                                    
+                                    <!-- Loading Spinner -->
+                                    <div class="text-center mt-3 loading-spinner" id="loadingSpinner" style="display:none;">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Uploading...</span>
+                                        </div>
+                                        <p class="mt-2">Uploading to Instagram...</p>
+                                    </div>
+                                    
+                                    <!-- Instagram Requirements -->
+                                    <div class="mt-4">
+                                        <div class="alert alert-info">
+                                            <h6><i class="fas fa-info-circle me-2"></i>Instagram Requirements:</h6>
+                                            <ul class="mb-0 small">
+                                                <li>Video format: MP4, MOV, AVI</li>
+                                                <li>Maximum file size: 4GB</li>
+                                                <li>Aspect ratio: 9:16 (vertical) recommended</li>
+                                                <li>Duration: 3 seconds to 90 seconds</li>
+                                                <li>Caption limit: 2,200 characters</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+        let currentClientId = null;
+        let currentAccountId = null;
+        
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            initializePage();
+            setupEventListeners();
+            
+            // Handle terminal auth links
+            document.querySelectorAll('a[href^="/instagram/auth-terminal/"]').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const clientId = this.getAttribute('href').split('/').pop();
+                    
+                    // Show loading state
+                    this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Loading...';
+                    this.disabled = true;
+                    
+                    // Call the terminal auth endpoint
+                    fetch(this.getAttribute('href'))
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                showNotification('✅ Instagram OAuth URL displayed in terminal! Check your console.', 'success');
+                            } else {
+                                showNotification('❌ Error: ' + data.error, 'error');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            showNotification('❌ Error calling auth endpoint', 'error');
+                        })
+                        .finally(() => {
+                            // Reset button state
+                            this.innerHTML = '<i class="fas fa-terminal me-1"></i>Terminal';
+                            this.disabled = false;
+                        });
+                });
+            });
+        });
+        
+        function initializePage() {
+            // Set first client as active if available
+            const firstClient = document.querySelector('.client-card');
+            if (firstClient) {
+                const clientId = firstClient.dataset.clientId;
+                selectClient(clientId);
+            }
+        }
+        
+        function setupEventListeners() {
+            // Client selection
+            document.querySelectorAll('.select-client-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const clientId = this.dataset.clientId;
+                    selectClient(clientId);
+                });
+            });
+            
+            // Character counters
+            document.getElementById('caption').addEventListener('input', function() {
+                const count = this.value.length;
+                document.getElementById('caption_count').textContent = count;
+                
+                if (count > 2000) {
+                    document.getElementById('caption_count').classList.add('text-danger');
+                } else {
+                    document.getElementById('caption_count').classList.remove('text-danger');
+                }
+            });
+            
+            // Form submission
+            document.getElementById('instagramUploadForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                submitInstagramUpload();
+            });
+        }
+        
+        function selectClient(clientId) {
+            // Update UI
+            document.querySelectorAll('.client-card').forEach(card => {
+                card.classList.remove('border-primary');
+            });
+            document.querySelector(`[data-client-id="${clientId}"]`).classList.add('border-primary');
+            
+            // Update buttons
+            document.querySelectorAll('.select-client-btn').forEach(btn => {
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-outline-primary');
+            });
+            document.querySelector(`[data-client-id="${clientId}"] .select-client-btn`).classList.remove('btn-outline-primary');
+            document.querySelector(`[data-client-id="${clientId}"] .select-client-btn`).classList.add('btn-primary');
+            
+            currentClientId = clientId;
+            
+            // Load accounts for this client
+            loadAccountsForClient(clientId);
+        }
+        
+        function loadAccountsForClient(clientId) {
+            const accountSelect = document.getElementById('account');
+            accountSelect.innerHTML = '<option value="">Loading accounts...</option>';
+            
+            fetch(`/api/instagram/accounts/${clientId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        accountSelect.innerHTML = '<option value="">Select an account</option>';
+                        data.accounts.forEach(account => {
+                            const option = document.createElement('option');
+                            option.value = account.id;
+                            option.textContent = `${account.name} (@${account.username})`;
+                            accountSelect.appendChild(option);
+                        });
+                        
+                        // Update account status
+                        const statusElement = document.querySelector(`[data-client-id="${clientId}"] .account-status`);
+                        statusElement.textContent = `${data.accounts.length} account(s) available`;
+                        statusElement.className = 'account-status text-success';
+                    } else {
+                        accountSelect.innerHTML = '<option value="">No accounts available</option>';
+                        
+                        // Update account status
+                        const statusElement = document.querySelector(`[data-client-id="${clientId}"] .account-status`);
+                        statusElement.textContent = 'No accounts available';
+                        statusElement.className = 'account-status text-danger';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading accounts:', error);
+                    accountSelect.innerHTML = '<option value="">Error loading accounts</option>';
+                    
+                    // Update account status
+                    const statusElement = document.querySelector(`[data-client-id="${clientId}"] .account-status`);
+                    statusElement.textContent = 'Error loading accounts';
+                    statusElement.className = 'account-status text-danger';
+                });
+        }
+        
+        function submitInstagramUpload() {
+            const form = document.getElementById('instagramUploadForm');
+            const formData = new FormData(form);
+            
+            // Add client ID
+            formData.append('client_id', currentClientId);
+            
+            // Show loading state
+            document.getElementById('uploadBtn').disabled = true;
+            document.getElementById('loadingSpinner').style.display = 'block';
+            
+            fetch('/instagram', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                // Check if response is JSON or HTML
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    return response.json();
+                } else {
+                    // If it's HTML (redirect), reload the page to show flash messages
+                    window.location.reload();
+                    return null;
+                }
+            })
+            .then(data => {
+                if (data && data.success) {
+                    showNotification('✅ Video uploaded to Instagram successfully!', 'success');
+                    form.reset();
+                    document.getElementById('caption_count').textContent = '0';
+                } else if (data && !data.success) {
+                    showNotification('❌ Upload failed: ' + (data.message || 'Unknown error'), 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('❌ Upload failed: Network error', 'error');
+            })
+            .finally(() => {
+                // Hide loading state
+                document.getElementById('uploadBtn').disabled = false;
+                document.getElementById('loadingSpinner').style.display = 'none';
+            });
+        }
+        
+        function showNotification(message, type) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type === 'error' ? 'danger' : 'success'} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            
+            document.getElementById('flashArea').appendChild(alertDiv);
+            
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.remove();
+                }
+            }, 5000);
+        }
+</script>
+{% endblock %} 

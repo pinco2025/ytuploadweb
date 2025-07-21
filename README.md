@@ -1,6 +1,6 @@
 # Faceless Video Gen Engine
 
-A modern Flask web application for uploading videos to YouTube as Shorts, with Discord-based job submission, n8n integration, and robust multi-client support. Features a dark-themed navbar, modular navigation, and secure token handling.
+A modern Flask web application for uploading videos to YouTube as Shorts and Instagram Reels, with Discord-based job submission, n8n integration, and robust multi-client support. Features a dark-themed navbar, modular navigation, and secure token handling.
 
 ## 🚀 Features
 
@@ -11,6 +11,8 @@ A modern Flask web application for uploading videos to YouTube as Shorts, with D
 - **Modern UI**: Dark navbar, bold branding, and app-wide navigation
 - **n8n Integration**: Easily manage webhook URLs via a modal in the navbar
 - **Discord Job Submission**: Upload files in Discord, submit jobs via message link
+- **Gemini AI Integration**: Auto-generate SEO-optimized titles, descriptions, and hashtags based on filenames
+- **Google Drive Integration**: Extract filenames from Google Drive links using service account credentials
 - **Feature Flags**: Enable/disable modules via `.env` file
 - **Secure Token Handling**: All tokens in `tokens/` are gitignored
 
@@ -21,6 +23,8 @@ Web-Api-Sys/
 ├── app.py                    # Main Flask application
 ├── auth_manager.py           # Multi-client authentication manager
 ├── youtube_service.py        # YouTube service with quota management
+├── instagram_service.py      # Instagram service with API management
+├── gemini_service.py         # Gemini AI service for content generation
 ├── validators.py             # Comprehensive input validation
 ├── config.py                 # Configuration settings
 ├── requirements.txt          # Python dependencies
@@ -28,7 +32,8 @@ Web-Api-Sys/
 ├── tokens/                   # OAuth token storage directory (gitignored)
 ├── templates/
 │   ├── base.html             # App-wide layout with dark navbar and navigation
-│   ├── index.html            # Main upload interface
+│   ├── index.html            # YouTube upload interface
+│   ├── instagram.html        # Instagram upload interface
 │   ├── success.html          # Success page (theme-mapped)
 │   ├── discord_job.html      # Discord job submission page
 │   ├── n8n.html              # n8n job submission page
@@ -50,6 +55,7 @@ You can enable or disable major modules via your `.env` file:
 ENABLE_N8N_JOBS=true
 ENABLE_DISCORD_JOB=true
 ENABLE_YOUTUBE_UPLOAD=true
+ENABLE_INSTAGRAM_UPLOAD=true
 ```
 
 Set any to `false` to hide its routes and navigation. The n8n webhook config modal is always available.
@@ -57,8 +63,11 @@ Set any to `false` to hide its routes and navigation. The n8n webhook config mod
 ## 🧑‍💻 Usage Workflow
 
 - **YouTube Uploader**: Upload videos to YouTube with quota tracking and multi-client support.
+- **Instagram Uploader**: Upload videos to Instagram Reels with multi-account support and content publishing.
 - **Discord Job Submission**: Upload 8 files in a Discord message, copy the message link, and submit via the app.
 - **n8n Jobs**: Submit jobs to n8n webhooks (if enabled).
+- **Google Drive Filename Extraction**: The system automatically extracts filenames from Google Drive links. With service account credentials, you get accurate filenames. Without them, the system uses fallback methods.
+- **Gemini AI Content Generation**: Enter a Google Drive link, select your platform, and click "AI Generate" to automatically create SEO-optimized titles, descriptions, and hashtags based on the filename.
 - **Manage Webhook URLs**: Use the "Edit n8n Webhook URLs" button in the navbar. Enter only your ngrok subdomain (e.g., `abc123` for `https://abc123.ngrok-free.app`).
 
 ## 🔒 Security
@@ -93,31 +102,70 @@ Set any to `false` to hide its routes and navigation. The n8n webhook config mod
      cp .env.example .env  # if available, or create manually
      ```
    - Add your environment variables (see below for feature flags and required secrets).
+   
+   **Required environment variables:**
+   ```
+   # YouTube API
+   YOUTUBE_CLIENT_ID=your_youtube_client_id
+   YOUTUBE_CLIENT_SECRET=your_youtube_client_secret
+   
+   # Instagram API
+   INSTAGRAM_APP_ID=your_instagram_app_id
+   INSTAGRAM_APP_SECRET=your_instagram_app_secret
+   
+   # Gemini AI (for auto content generation)
+   GEMINI_API_KEY=your_gemini_api_key
+   
+   # Feature flags
+   ENABLE_YOUTUBE_UPLOAD=true
+   ENABLE_INSTAGRAM_UPLOAD=true
+   ENABLE_DISCORD_JOB=true
+   ENABLE_N8N_JOBS=true
+   ```
 
 4. **Configure YouTube OAuth clients**
    - Add your client credentials to `clients.json` (see the example in the repo).
    - Make sure `clients.json` is gitignored.
 
-5. **Set up Discord bot (for Discord job module)**
+5. **Set up Instagram Business/Creator accounts**
+   - Create a Facebook App in the [Facebook Developer Portal](https://developers.facebook.com/)
+   - Add Instagram Basic Display and Instagram Graph API products
+   - Configure OAuth redirect URI: `http://localhost:5000/instagram_oauth_callback`
+   - Ensure your Instagram accounts are Business or Creator accounts (not personal)
+   - Connect your Facebook pages to Instagram accounts
+
+6. **Set up Discord bot (for Discord job module)**
    - Create a bot in the [Discord Developer Portal](https://discord.com/developers/applications).
    - Invite it to your server with `READ_MESSAGE_HISTORY` and `VIEW_CHANNEL` permissions.
    - Add your bot token to `.env` as `DISCORD_BOT_TOKEN`.
 
-6. **Run the application**
+7. **Set up Google Drive Service Account (for better filename extraction)**
+   - Run the setup script: `python setup_service_account.py`
+   - Follow the guided steps to create and configure service account credentials
+   - This enables accurate filename extraction from Google Drive links
+   - Without this, the system will use fallback methods for filename extraction
+
+8. **Set up Gemini AI (for auto content generation)**
+   - Get your API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
+   - Add your API key to `.env` as `GEMINI_API_KEY`
+   - The feature will be automatically disabled if no API key is provided
+
+8. **Run the application**
    ```bash
    python app.py
    ```
    The app will be available at [http://localhost:5000](http://localhost:5000)
 
-7. **Feature Flags (optional)**
+9. **Feature Flags (optional)**
    - In your `.env`, set any of these to `false` to disable the module:
      ```
      ENABLE_N8N_JOBS=true
      ENABLE_DISCORD_JOB=true
      ENABLE_YOUTUBE_UPLOAD=true
+     ENABLE_INSTAGRAM_UPLOAD=true
      ```
 
-8. **Manage n8n Webhook URLs**
+10. **Manage n8n Webhook URLs**
    - Use the "Edit n8n Webhook URLs" button in the navbar.
    - Enter only your ngrok subdomain (e.g., `abc123` for `https://abc123.ngrok-free.app`).
 

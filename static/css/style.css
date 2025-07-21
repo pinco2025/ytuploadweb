@@ -486,3 +486,53 @@ a:hover {
   font-size: 1.1rem;
   padding: 1rem 2rem;
 }
+
+/* Instagram-specific styles */
+.btn-gradient-primary {
+  background: linear-gradient(135deg, #833AB4 0%, #FD1D1D 50%, #F77737 100%);
+  color: var(--text-primary);
+  box-shadow: 0 4px 15px rgba(131, 58, 180, 0.4);
+}
+
+.btn-gradient-primary:hover {
+  background: linear-gradient(135deg, #6B2C8F 0%, #E01B1B 50%, #E05A1F 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(131, 58, 180, 0.5);
+  color: var(--text-primary);
+}
+
+.bg-gradient-primary {
+  background: linear-gradient(135deg, #833AB4 0%, #FD1D1D 50%, #F77737 100%) !important;
+}
+
+.account-status {
+  transition: color 0.3s ease;
+}
+
+.account-status.text-success {
+  color: var(--success-color) !important;
+}
+
+.account-status.text-danger {
+  color: var(--error-color) !important;
+}
+
+/* Instagram requirements box */
+.alert-info {
+  background: linear-gradient(145deg, rgba(6, 182, 212, 0.1) 0%, rgba(6, 182, 212, 0.05) 100%);
+  border: 1px solid rgba(6, 182, 212, 0.3);
+  color: var(--text-primary);
+}
+
+.alert-info h6 {
+  color: var(--info-color);
+  font-weight: 600;
+}
+
+.alert-info ul {
+  color: var(--text-secondary);
+}
+
+.alert-info li {
+  margin-bottom: 0.25rem;
+}

@@ -18,8 +18,10 @@ class InputValidator:
     
     # Maximum file sizes (in bytes)
     MAX_FILE_SIZE = 15 * 1024 * 1024 * 1024  # 15GB for YouTube
+    MAX_INSTAGRAM_FILE_SIZE = 4 * 1024 * 1024 * 1024  # 4GB for Instagram
     MAX_TITLE_LENGTH = 100
     MAX_DESCRIPTION_LENGTH = 5000
+    MAX_INSTAGRAM_CAPTION_LENGTH = 2200  # Instagram caption limit
     MAX_HASHTAGS = 20
     MAX_HASHTAG_LENGTH = 30
     
@@ -180,6 +182,11 @@ class InputValidator:
     @staticmethod
     def validate_channel_id(channel_id: str, available_channels: List[Dict]) -> Tuple[bool, str]:
         """Validate a channel ID against the list of available channels. Returns (is_valid, error_message)."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+
+        
         if not channel_id:
             return False, "Channel ID is required"
         
@@ -188,9 +195,9 @@ class InputValidator:
         
         # Check if channel exists
         channel_exists = any(channel['id'] == channel_id for channel in available_channels)
+        
         if not channel_exists:
             return False, f"Channel '{channel_id}' not found"
-        
         return True, ""
     
     @staticmethod
@@ -288,10 +295,113 @@ class InputValidator:
         cleaned_data['client_id'] = client_id
         
         # Validate channel ID
-        channel_id = form_data.get('channel', '')
+        channel_id = form_data.get('channel_id', '')
         is_valid, error_msg = InputValidator.validate_channel_id(channel_id, available_channels)
         if not is_valid:
             return False, error_msg, {}
         cleaned_data['channel_id'] = channel_id
+        
+        return True, "", cleaned_data
+    
+    @staticmethod
+    def validate_instagram_caption(caption: str) -> Tuple[bool, str]:
+        """Validate an Instagram caption. Returns (is_valid, error_message)."""
+        if not caption:
+            return True, ""  # Caption is optional for Instagram
+        
+        if not isinstance(caption, str):
+            return False, "Instagram caption must be a string"
+        
+        caption = caption.strip()
+        
+        if len(caption) > InputValidator.MAX_INSTAGRAM_CAPTION_LENGTH:
+            return False, f"Instagram caption must be {InputValidator.MAX_INSTAGRAM_CAPTION_LENGTH} characters or less"
+        
+        return True, ""
+    
+    @staticmethod
+    def validate_instagram_file_path(file_path: str) -> Tuple[bool, str]:
+        """Validate a local file path for Instagram upload. Returns (is_valid, error_message)."""
+        if not file_path:
+            return False, "File path is required"
+        
+        if not os.path.exists(file_path):
+            return False, f"File not found: {file_path}"
+        
+        if not os.path.isfile(file_path):
+            return False, f"Path is not a file: {file_path}"
+        
+        # Check file size for Instagram limits
+        try:
+            file_size = os.path.getsize(file_path)
+            if file_size > InputValidator.MAX_INSTAGRAM_FILE_SIZE:
+                return False, f"File too large for Instagram: {file_size} bytes (max {InputValidator.MAX_INSTAGRAM_FILE_SIZE} bytes)"
+        except OSError:
+            return False, f"Cannot access file: {file_path}"
+        
+        # Check file extension (Instagram supports fewer formats)
+        file_ext = os.path.splitext(file_path)[1].lower()
+        instagram_formats = {'.mp4', '.mov', '.avi'}
+        if file_ext not in instagram_formats:
+            return False, f"Unsupported file format for Instagram: {file_ext}. Supported formats: {', '.join(instagram_formats)}"
+        
+        return True, ""
+    
+    @staticmethod
+    def validate_account_id(account_id: str, available_accounts: List[Dict]) -> Tuple[bool, str]:
+        """Validate an account ID against the list of available Instagram accounts. Returns (is_valid, error_message)."""
+        if not account_id:
+            return False, "Account ID is required"
+        
+        if not isinstance(account_id, str):
+            return False, "Account ID must be a string"
+        
+        # Check if account exists
+        account_exists = any(account['id'] == account_id for account in available_accounts)
+        if not account_exists:
+            return False, f"Account '{account_id}' not found"
+        
+        return True, ""
+    
+    @staticmethod
+    def validate_instagram_upload_form_data(form_data: Dict, available_clients: List[Dict], available_accounts: List[Dict]) -> Tuple[bool, str, Dict]:
+        """Validate all Instagram upload form data at once. Returns (is_valid, error_message, cleaned_data)."""
+        cleaned_data = {}
+        
+        # Validate Google Drive link
+        drive_link = form_data.get('drive_link', '')
+        is_valid, error_msg, file_id = InputValidator.validate_google_drive_link(drive_link)
+        if not is_valid:
+            return False, error_msg, {}
+        cleaned_data['drive_link'] = drive_link
+        cleaned_data['file_id'] = file_id
+        
+        # Validate caption (use description field from form for consistency)
+        caption = form_data.get('description', '')
+        is_valid, error_msg = InputValidator.validate_instagram_caption(caption)
+        if not is_valid:
+            return False, error_msg, {}
+        cleaned_data['caption'] = InputValidator.sanitize_text(caption)
+        
+        # Validate hashtags
+        hashtags = form_data.get('hashtags', '')
+        is_valid, error_msg, parsed_hashtags = InputValidator.validate_hashtags(hashtags)
+        if not is_valid:
+            return False, error_msg, {}
+        cleaned_data['hashtags'] = parsed_hashtags
+        
+        # Validate client ID
+        client_id = form_data.get('client_id', '')
+        is_valid, error_msg = InputValidator.validate_client_id(client_id, available_clients)
+        if not is_valid:
+            return False, error_msg, {}
+        cleaned_data['client_id'] = client_id
+        
+        # Validate account ID (using channel_id field name for consistency with unified template)
+        account_id = form_data.get('channel_id', '')
+        is_valid, error_msg = InputValidator.validate_account_id(account_id, available_accounts)
+        if not is_valid:
+            return False, error_msg, {}
+        cleaned_data['account_id'] = account_id
         
         return True, "", cleaned_data 

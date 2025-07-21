@@ -4,8 +4,10 @@ import uuid
 import tempfile
 import logging
 import webbrowser
+from datetime import datetime
 from typing import Dict, List, Optional
 from youtube_service import YouTubeServiceV2
+from instagram_service import InstagramService
 from auth_manager import AuthManager
 from validators import InputValidator
 from n8n_service import N8nService
@@ -17,6 +19,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 import pickle
 from google_drive_service import GoogleDriveService
+from gemini_service import GeminiService
 
 # Allow OAuth2 to work with HTTP for localhost development
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
@@ -41,8 +44,18 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 # Initialize services
 auth_manager = AuthManager()
 youtube_service = YouTubeServiceV2(auth_manager)
+instagram_service = InstagramService(auth_manager)
 n8n_service = N8nService()
 drive_service = GoogleDriveService()
+
+# Initialize Gemini service (optional - only if API key is available)
+try:
+    gemini_service = GeminiService()
+    GEMINI_AVAILABLE = True
+except Exception as e:
+    logger.warning(f"Gemini service not available: {e}")
+    gemini_service = None
+    GEMINI_AVAILABLE = False
 
 # --- Flask Application for YouTube Shorts Uploader and n8n Integration ---
 #
@@ -74,10 +87,7 @@ if app.config['ENABLE_DISCORD_JOB']:
             message_link = message_link.replace('discord://', 'https://discord.com/')
         message_link = message_link.strip()  # Extra strip after replacements
 
-        # Debug prints for troubleshooting
-        print(f"message_link: '{message_link}'")
-        parts = message_link.split('/')
-        print(f"parts: {parts}")
+
         channel_id = parts[-2] if len(parts) >= 2 else ''
         message_id = parts[-1] if len(parts) >= 1 else ''
 
@@ -92,7 +102,7 @@ if app.config['ENABLE_DISCORD_JOB']:
         if len(attachments) != 8:
             return jsonify({'success': False, 'message': 'Message must have exactly 8 attachments.'}), 400
 
-        # Separate audio and image files by extension, and keep both filename and url for debugging
+        # Separate audio and image files by extension
         audio_exts = {'.mp3', '.wav', '.m4a', '.aac', '.mp4'}
         image_exts = {'.jpg', '.jpeg', '.png', '.webp'}
         audios_full = [a for a in attachments if any(a['filename'].lower().endswith(ext) for ext in audio_exts)]
@@ -101,9 +111,6 @@ if app.config['ENABLE_DISCORD_JOB']:
         images = [a['url'] for a in images_full]
         audio_filenames = [a['filename'] for a in audios_full]
         image_filenames = [a['filename'] for a in images_full]
-        # Log the original order for debugging (remove or comment out)
-        # print('Original images:', list(zip(image_filenames, images)))
-        # print('Original audios:', list(zip(audio_filenames, audios)))
         if len(audios) != 4 or len(images) != 4:
             return jsonify({'success': False, 'message': 'Message must have 4 audio and 4 image files.'}), 400
 
@@ -163,33 +170,45 @@ def load_n8n_config():
         print(f'Error loading n8n_config.json: {e}')
         return {}
 
-# Main YouTube uploader route
-if app.config['ENABLE_YOUTUBE_UPLOAD']:
+# Unified uploader route
+if app.config['ENABLE_YOUTUBE_UPLOAD'] or app.config['ENABLE_INSTAGRAM_UPLOAD']:
     @app.route('/', methods=['GET', 'POST'])
-    def index():
+    def unified_upload():
         """Main upload page with improved error handling and validation."""
         if request.method == 'POST':
             try:
                 # Get form data from POST request
                 form_data = {
                     'drive_link': request.form.get('drive_link', ''),
+                    'direct_drive_link': request.form.get('direct_drive_link', ''),  # For Instagram
                     'title': request.form.get('title', ''),
                     'description': request.form.get('description', ''),
                     'hashtags': request.form.get('hashtags', ''),
                     'privacy': request.form.get('privacy', 'public'),
                     'client_id': request.form.get('client_id', ''),
-                    'channel': request.form.get('channel', '')
+                    'channel_id': request.form.get('channel_id', ''),
+                    'platform': request.form.get('platform', '')
                 }
                 
-                # Get available clients and channels for validation
+
+                
+                # Get available clients and channels/accounts for validation
                 available_clients = auth_manager.get_all_clients()
                 if not available_clients:
-                    flash('No YouTube clients configured. Please check your clients.json file.', 'error')
-                    return render_template('index.html', clients=[], quota_status={}, config=app.config)
+                    flash('No clients configured. Please check your clients.json file.', 'error')
+                    return render_template('unified_upload.html', clients=[], quota_status={}, config=app.config)
                 
-                # Get channels for the selected client
-                selected_client_id = form_data.get('client_id', available_clients[0]['id'] if available_clients else '')
-                available_channels, channel_message = youtube_service.get_channels_for_client(selected_client_id)
+                # Determine platform and get appropriate channels/accounts
+                platform = form_data.get('platform', '')
+                selected_client_id = form_data.get('client_id', '')
+                
+                if platform == 'youtube':
+                    available_channels, channel_message = youtube_service.get_channels_for_client(selected_client_id)
+                elif platform == 'instagram':
+                    available_channels, channel_message = instagram_service.get_accounts_for_client(selected_client_id)
+                else:
+                    flash('Invalid platform selected.', 'error')
+                    return render_template('unified_upload.html', clients=[], quota_status={}, config=app.config)
                 
                 if channel_message != "Success":
                     flash(f'Error loading channels: {channel_message}', 'error')
@@ -197,110 +216,164 @@ if app.config['ENABLE_YOUTUBE_UPLOAD']:
                     quota_status = {c['id']: youtube_service.get_quota_status(c['id']) for c in clients}
                     return render_template('index.html', clients=clients, quota_status=quota_status, config=app.config)
                 
-                # Validate all form data
-                is_valid, error_msg, cleaned_data = InputValidator.validate_upload_form_data(
-                    form_data, available_clients, available_channels
-                )
+                # Validate all form data based on platform
+                if platform == 'youtube':
+                    is_valid, error_msg, cleaned_data = InputValidator.validate_upload_form_data(
+                        form_data, available_clients, available_channels
+                    )
+                elif platform == 'instagram':
+                    is_valid, error_msg, cleaned_data = InputValidator.validate_instagram_upload_form_data(
+                        form_data, available_clients, available_channels
+                    )
+                else:
+                    is_valid, error_msg, cleaned_data = False, 'Invalid platform', {}
                 
                 if not is_valid:
                     flash(error_msg, 'error')
                     clients = auth_manager.get_all_clients()
                     quota_status = {c['id']: youtube_service.get_quota_status(c['id']) for c in clients}
-                    return render_template('index.html', clients=clients, quota_status=quota_status, config=app.config)
+                    return render_template('unified_upload.html', clients=clients, quota_status=quota_status, config=app.config)
                 
-                # Check quota before proceeding
-                quota_status = youtube_service.get_quota_status(cleaned_data['client_id'])
-                if quota_status.get('remaining_quota', 0) < 1600:  # Upload costs 1600 quota points
-                    flash(f'Insufficient API quota for client {cleaned_data["client_id"]}. Remaining: {quota_status.get("remaining_quota", 0)}', 'error')
-                    clients = auth_manager.get_all_clients()
-                    quota_status = {c['id']: youtube_service.get_quota_status(c['id']) for c in clients}
-                    return render_template('index.html', clients=clients, quota_status=quota_status, config=app.config)
-                
-                # Generate unique filename
-                unique_filename = f"video_{uuid.uuid4().hex}.mp4"
-                local_video_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
-                
-                try:
-                    # Download video from Google Drive
-                    logger.info(f"Downloading video from Google Drive: {cleaned_data['drive_link']}")
-                    download_success = drive_service.download_file_direct(cleaned_data['drive_link'], local_video_path)
-                    
-                    if not download_success:
-                        flash('Failed to download video from Google Drive. Make sure the link is public and accessible.', 'error')
+                # Check quota before proceeding (YouTube only)
+                if platform == 'youtube':
+                    quota_status = youtube_service.get_quota_status(cleaned_data['client_id'])
+                    if quota_status.get('remaining_quota', 0) < 1600:  # Upload costs 1600 quota points
+                        flash(f'Insufficient API quota for client {cleaned_data["client_id"]}. Remaining: {quota_status.get("remaining_quota", 0)}', 'error')
                         clients = auth_manager.get_all_clients()
                         quota_status = {c['id']: youtube_service.get_quota_status(c['id']) for c in clients}
-                        return render_template('index.html', clients=clients, quota_status=quota_status, config=app.config)
+                        return render_template('unified_upload.html', clients=clients, quota_status=quota_status, config=app.config)
+                
+                try:
+                    # Handle different platforms
+                    if platform == 'youtube':
+                        # YouTube requires file download
+                        unique_filename = f"{platform}_video_{uuid.uuid4().hex}.mp4"
+                        local_video_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+                        
+                        # Download video from Google Drive for YouTube
+                        logger.info(f"Downloading video from Google Drive for YouTube: {cleaned_data['drive_link']}")
+                        download_success = drive_service.download_file_direct(cleaned_data['drive_link'], local_video_path)
+                        
+                        if not download_success:
+                            flash('Failed to download video from Google Drive. Make sure the link is public and accessible.', 'error')
+                            clients = auth_manager.get_all_clients()
+                            quota_status = {c['id']: youtube_service.get_quota_status(c['id']) for c in clients}
+                            return render_template('unified_upload.html', clients=clients, quota_status=quota_status, config=app.config)
+                    elif platform == 'instagram':
+                        # Instagram uses direct URL conversion (no file download needed)
+                        local_video_path = None
                     
-                    # Prepare description with hashtags
-                    description = cleaned_data['description']
-                    if cleaned_data['hashtags']:
-                        hashtag_text = ' '.join([f'#{tag}' for tag in cleaned_data['hashtags']])
-                        description += f'\n\n{hashtag_text}'
-                    
-                    # Upload to YouTube
-                    logger.info(f"Uploading video to YouTube with client {cleaned_data['client_id']}, channel {cleaned_data['channel_id']}")
-                    success, message, response = youtube_service.upload_video(
-                        video_path=local_video_path,
-                        title=cleaned_data['title'],
-                        description=description,
-                        tags=cleaned_data['hashtags'],
-                        privacy_status=cleaned_data['privacy'],
-                        channel_id=cleaned_data['channel_id'],
-                        client_id=cleaned_data['client_id']
-                    )
+                    # Upload based on platform
+                    if platform == 'youtube':
+                        # Prepare description with hashtags
+                        description = cleaned_data['description']
+                        if cleaned_data['hashtags']:
+                            hashtag_text = ' '.join([f'#{tag}' for tag in cleaned_data['hashtags']])
+                            description += f'\n\n{hashtag_text}'
+                        
+                        # Upload to YouTube
+                        logger.info(f"Uploading video to YouTube with client {cleaned_data['client_id']}, channel {cleaned_data['channel_id']}")
+                        success, message, response = youtube_service.upload_video(
+                            video_path=local_video_path,
+                            title=cleaned_data['title'],
+                            description=description,
+                            tags=cleaned_data['hashtags'],
+                            privacy_status=cleaned_data['privacy'],
+                            channel_id=cleaned_data['channel_id'],
+                            client_id=cleaned_data['client_id']
+                        )
+                    elif platform == 'instagram':
+                        # Convert Google Drive link to direct download URL for Instagram
+                        logger.info(f"Converting Google Drive link for Instagram: {cleaned_data['drive_link']}")
+                        conversion_result = drive_service.convert_to_direct_link(cleaned_data['drive_link'])
+                        
+                        if not conversion_result['success']:
+                            flash(f'Failed to convert Google Drive link: {conversion_result.get("error", "Unknown error")}', 'error')
+                            clients = auth_manager.get_all_clients()
+                            quota_status = {c['id']: youtube_service.get_quota_status(c['id']) for c in clients}
+                            return render_template('unified_upload.html', clients=clients, quota_status=quota_status, config=app.config)
+                        
+                        direct_video_url = conversion_result['direct_link']
+                        logger.info(f"Converted to direct URL: {direct_video_url[:50]}...")
+                        
+                        # Prepare caption with hashtags
+                        caption = cleaned_data['caption']
+                        if cleaned_data['hashtags']:
+                            hashtag_text = ' '.join([f'#{tag}' for tag in cleaned_data['hashtags']])
+                            caption += f'\n\n{hashtag_text}'
+                        
+                        # Upload to Instagram using direct URL (no file download needed)
+                        logger.info(f"Uploading video to Instagram with client {cleaned_data['client_id']}, account {cleaned_data['account_id']}")
+                        success, message, response = instagram_service.upload_video(
+                            video_path=None,  # Not needed when using video_url
+                            caption=caption,
+                            hashtags=cleaned_data['hashtags'],
+                            account_id=cleaned_data['account_id'],
+                            client_id=cleaned_data['client_id'],
+                            video_url=direct_video_url
+                        )
                     
                     if success and response:
-                        video_id = response['id']
-                        video_url = f"https://www.youtube.com/watch?v={video_id}"
-                        
-                        # Get updated quota status
-                        updated_quota = youtube_service.get_quota_status(cleaned_data['client_id'])
-                        
-                        flash(f'Video uploaded successfully! Video ID: {video_id}', 'success')
-                        return render_template('success.html', 
-                                             video_url=video_url, 
-                                             video_id=video_id, 
-                                             quota_status=updated_quota,
-                                             client_name=next((c['name'] for c in available_clients if c['id'] == cleaned_data['client_id']), 'Unknown'),
-                                             config=app.config)
+                        if platform == 'youtube':
+                            video_id = response['id']
+                            video_url = f"https://www.youtube.com/watch?v={video_id}"
+                            
+                            # Get updated quota status
+                            updated_quota = youtube_service.get_quota_status(cleaned_data['client_id'])
+                            
+                            flash(f'Video uploaded to YouTube successfully! Video ID: {video_id}', 'success')
+                            return render_template('success.html', 
+                                                 platform='youtube',
+                                                 video_url=video_url, 
+                                                 video_id=video_id, 
+                                                 quota_status=updated_quota,
+                                                 client_name=next((c['name'] for c in available_clients if c['id'] == cleaned_data['client_id']), 'Unknown'),
+                                                 config=app.config)
+                        elif platform == 'instagram':
+                            flash(f'Video uploaded to Instagram successfully! {message}', 'success')
+                            return render_template('success.html',
+                                                 platform='instagram',
+                                                 message=message,
+                                                 client_name=next((c['name'] for c in available_clients if c['id'] == cleaned_data['client_id']), 'Unknown'),
+                                                 config=app.config)
                     else:
                         flash(f'Failed to upload video: {message}', 'error')
                         clients = auth_manager.get_all_clients()
                         quota_status = {c['id']: youtube_service.get_quota_status(c['id']) for c in clients}
-                        return render_template('index.html', clients=clients, quota_status=quota_status, config=app.config)
+                        return render_template('unified_upload.html', clients=clients, quota_status=quota_status, config=app.config)
                         
                 finally:
-                    # Clean up local file
-                    try:
-                        if os.path.exists(local_video_path):
+                    # Clean up local file (only for YouTube uploads)
+                    if platform == 'youtube' and local_video_path and os.path.exists(local_video_path):
+                        try:
                             os.remove(local_video_path)
                             logger.info(f"Cleaned up temporary file: {local_video_path}")
-                    except Exception as e:
-                        logger.warning(f"Failed to clean up temporary file {local_video_path}: {e}")
+                        except Exception as e:
+                            logger.warning(f"Failed to clean up temporary file {local_video_path}: {e}")
                     
             except Exception as e:
                 logger.error(f"Unexpected error during upload: {e}")
                 flash(f'An unexpected error occurred: {str(e)}', 'error')
                 clients = auth_manager.get_all_clients()
                 quota_status = {c['id']: youtube_service.get_quota_status(c['id']) for c in clients}
-                return render_template('index.html', clients=clients, quota_status=quota_status, config=app.config)
+                return render_template('unified_upload.html', clients=clients, quota_status=quota_status, config=app.config)
         
         # GET request - show the form
         try:
             # Get available clients and their quota status for GET request
             clients = auth_manager.get_all_clients()
             if not clients:
-                flash('No YouTube clients configured. Please check your clients.json file.', 'error')
-                return render_template('index.html', clients=[], quota_status={}, config=app.config)
+                flash('No clients configured. Please check your clients.json file.', 'error')
+                return render_template('unified_upload.html', clients=[], quota_status={}, config=app.config)
             quota_status = {}
             for client in clients:
                 quota_status[client['id']] = youtube_service.get_quota_status(client['id'])
-            return render_template('index.html', clients=clients, quota_status=quota_status, config=app.config)
+            return render_template('unified_upload.html', clients=clients, quota_status=quota_status, config=app.config)
             
         except Exception as e:
             logger.error(f"Error loading main page: {e}")
             flash(f'Error loading page: {str(e)}', 'error')
-            return render_template('index.html', clients=[], quota_status={}, config=app.config)
+            return render_template('unified_upload.html', clients=[], quota_status={}, config=app.config)
 
 @app.route('/api/channels/<client_id>')
 def get_channels_for_client(client_id):
@@ -469,6 +542,146 @@ def validate_drive_link():
             "file_id": None
         })
 
+@app.route('/api/convert-drive-link', methods=['POST'])
+def convert_drive_link():
+    """API endpoint to convert Google Drive view link to direct download link."""
+    try:
+        data = request.get_json()
+        drive_link = data.get('drive_link', '')
+        
+        if not drive_link:
+            return jsonify({
+                "success": False,
+                "error": "No drive link provided",
+                "direct_link": None
+            })
+        
+        # Use the Google Drive service to convert the link
+        conversion_result = drive_service.convert_to_direct_link(drive_link)
+        
+        if conversion_result['success']:
+            return jsonify({
+                "success": True,
+                "direct_link": conversion_result['direct_link'],
+                "preview_link": conversion_result.get('preview_link'),
+                "file_id": conversion_result['file_id'],
+                "message": conversion_result['message']
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "error": conversion_result['error'],
+                "direct_link": None
+            })
+        
+    except Exception as e:
+        logger.error(f"Error converting drive link: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "direct_link": None
+        })
+
+@app.route('/api/generate-content', methods=['POST'])
+def generate_content():
+    """Generate SEO-optimized content using Gemini AI based on filename from drive link"""
+    try:
+        if not GEMINI_AVAILABLE:
+            return jsonify({
+                "success": False,
+                "error": "Gemini AI service is not available. Please check your GEMINI_API_KEY configuration."
+            }), 400
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                "success": False,
+                "error": "No data provided"
+            }), 400
+        
+        drive_link = data.get('drive_link', '').strip()
+        platform = data.get('platform', 'youtube').lower()
+        filename_override = data.get('filename_override', '').strip()
+        
+        if not drive_link:
+            return jsonify({
+                "success": False,
+                "error": "Drive link is required"
+            }), 400
+        
+        if platform not in ['youtube', 'instagram']:
+            return jsonify({
+                "success": False,
+                "error": "Platform must be 'youtube' or 'instagram'"
+            }), 400
+        
+        # Use filename override if provided, otherwise extract from drive link
+        if filename_override:
+            filename = filename_override
+            logger.info(f"Using filename override: {filename}")
+        else:
+            try:
+                file_info = drive_service.get_file_info(drive_link)
+                if not file_info or 'name' not in file_info:
+                    return jsonify({
+                        "success": False,
+                        "error": "Could not extract filename from drive link. Please use the filename override field."
+                    }), 400
+                
+                filename = file_info['name']
+                extraction_method = file_info.get('extracted_with', 'unknown')
+                logger.info(f"Extracted filename from drive link: {filename} (method: {extraction_method})")
+                
+                # Check if we got a generic filename
+                if filename.startswith('video_') and len(filename) < 20:
+                    logger.warning(f"Got generic filename: {filename}. Recommend using filename override for better AI generation.")
+                    
+                # Provide feedback about extraction quality
+                if extraction_method == 'fallback':
+                    logger.warning("Using fallback filename extraction. Consider providing service account credentials for better results.")
+                    
+            except Exception as e:
+                logger.error(f"Error extracting filename from drive link: {e}")
+                return jsonify({
+                    "success": False,
+                    "error": f"Error extracting filename: {str(e)}"
+                }), 400
+        
+        # Generate content using Gemini
+        try:
+            content = gemini_service.generate_content(filename, platform)
+            
+            if not content['success']:
+                return jsonify({
+                    "success": False,
+                    "error": content.get('error', 'Failed to generate content')
+                }), 500
+            
+            return jsonify({
+                "success": True,
+                "content": {
+                    "title": content['title'],
+                    "description": content['description'],
+                    "hashtags": content['hashtags']
+                },
+                "filename": filename,
+                "platform": platform
+            })
+            
+        except Exception as e:
+            logger.error(f"Error generating content with Gemini: {e}")
+            return jsonify({
+                "success": False,
+                "error": f"Error generating content: {str(e)}"
+            }), 500
+        
+    except Exception as e:
+        logger.error(f"Error in generate_content endpoint: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
 @app.route('/health')
 def health_check():
     """Health check endpoint."""
@@ -479,7 +692,8 @@ def health_check():
         return jsonify({
             "status": "healthy",
             "clients_configured": len(clients),
-            "upload_folder_exists": os.path.exists(app.config['UPLOAD_FOLDER'])
+            "upload_folder_exists": os.path.exists(app.config['UPLOAD_FOLDER']),
+            "gemini_available": GEMINI_AVAILABLE
         })
     except Exception as e:
         logger.error(f"Health check failed: {e}")
@@ -487,6 +701,340 @@ def health_check():
             "status": "unhealthy",
             "error": str(e)
         }), 500
+
+@app.route('/test-gemini')
+def test_gemini():
+    """Test endpoint for Gemini service debugging."""
+    try:
+        if not GEMINI_AVAILABLE:
+            return jsonify({
+                "success": False,
+                "error": "Gemini service not available"
+            }), 400
+        
+        # Test connection first
+        connection_test = gemini_service.test_connection()
+        
+        # Test with a simple filename
+        test_filename = "test_video.mp4"
+        test_platform = "youtube"
+        
+        logger.info(f"Testing Gemini with filename: {test_filename}, platform: {test_platform}")
+        
+        content = gemini_service.generate_content(test_filename, test_platform)
+        
+        return jsonify({
+            "success": True,
+            "connection_test": connection_test,
+            "content": content,
+            "filename": test_filename,
+            "platform": test_platform
+        })
+        
+    except Exception as e:
+        logger.error(f"Gemini test failed: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "error_type": type(e).__name__
+        }), 500
+
+@app.route('/test-drive-extraction')
+def test_drive_extraction():
+    """Test endpoint for Google Drive filename extraction."""
+    try:
+        # Get a test drive link from query parameter
+        test_link = request.args.get('link', '')
+        
+        if not test_link:
+            return jsonify({
+                "success": False,
+                "error": "Please provide a drive link as 'link' parameter"
+            }), 400
+        
+        logger.info(f"Testing drive link extraction: {test_link}")
+        
+        # Check if service account is available
+        service_account_available = drive_service.is_service_account_available()
+        
+        # Test file ID extraction
+        try:
+            file_id = drive_service.extract_file_id(test_link)
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "error": f"Failed to extract file ID: {str(e)}"
+            }), 400
+        
+        # Test file info extraction
+        file_info = drive_service.get_file_info(test_link)
+        
+        # Determine extraction quality
+        extraction_method = file_info.get('extracted_with', 'unknown') if file_info else 'failed'
+        if extraction_method == 'service_account':
+            extraction_quality = "excellent"
+        elif extraction_method == 'url_parsing':
+            extraction_quality = "good"
+        elif extraction_method == 'fallback':
+            extraction_quality = "generic"
+        else:
+            extraction_quality = "failed"
+        
+        return jsonify({
+            "success": True,
+            "drive_link": test_link,
+            "file_id": file_id,
+            "file_info": file_info,
+            "service_account_available": service_account_available,
+            "extraction_method": extraction_method,
+            "extraction_quality": extraction_quality,
+            "recommendation": "Provide service account credentials for better filename extraction" if not service_account_available else "Service account credentials are working properly"
+        })
+        
+    except Exception as e:
+        logger.error(f"Drive extraction test failed: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "error_type": type(e).__name__
+        }), 500
+
+# Instagram uploader routes
+if app.config['ENABLE_INSTAGRAM_UPLOAD']:
+    @app.route('/instagram', methods=['GET', 'POST'])
+    def instagram_upload():
+        """Instagram upload page with improved error handling and validation."""
+        if request.method == 'GET':
+            try:
+                # Get available clients
+                clients = auth_manager.get_all_clients()
+                return render_template('instagram.html', clients=clients, config=app.config)
+            except Exception as e:
+                logger.error(f"Error loading Instagram page: {e}")
+                flash(f'Error loading page: {str(e)}', 'error')
+                return render_template('instagram.html', clients=[], config=app.config)
+
+        # POST: handle upload logic
+        try:
+            # Get form data from POST request
+            form_data = {
+                'drive_link': request.form.get('drive_link', ''),
+                'caption': request.form.get('caption', ''),
+                'hashtags': request.form.get('hashtags', ''),
+                'client_id': request.form.get('client_id', ''),
+                'account': request.form.get('account', '')
+            }
+            
+            # Get available clients and accounts for validation
+            available_clients = auth_manager.get_all_clients()
+            if not available_clients:
+                flash('No Instagram clients configured. Please check your clients.json file.', 'error')
+                return render_template('instagram.html', clients=[], config=app.config)
+            
+            # Get accounts for the selected client
+            selected_client_id = form_data.get('client_id', available_clients[0]['id'] if available_clients else '')
+            available_accounts, account_message = instagram_service.get_accounts_for_client(selected_client_id)
+            
+            if account_message != "Success":
+                flash(f'Error loading accounts: {account_message}', 'error')
+                clients = auth_manager.get_all_clients()
+                return render_template('instagram.html', clients=clients, config=app.config)
+            
+            # Validate all form data
+            is_valid, error_msg, cleaned_data = InputValidator.validate_instagram_upload_form_data(
+                form_data, available_clients, available_accounts
+            )
+            
+            if not is_valid:
+                flash(error_msg, 'error')
+                clients = auth_manager.get_all_clients()
+                return render_template('instagram.html', clients=clients, config=app.config)
+            
+            try:
+                # Convert Google Drive link to direct download URL for Instagram
+                logger.info(f"Converting Google Drive link for Instagram: {cleaned_data['drive_link']}")
+                conversion_result = drive_service.convert_to_direct_link(cleaned_data['drive_link'])
+                
+                if not conversion_result['success']:
+                    flash(f'Failed to convert Google Drive link: {conversion_result.get("error", "Unknown error")}', 'error')
+                    clients = auth_manager.get_all_clients()
+                    return render_template('instagram.html', clients=clients, config=app.config)
+                
+                direct_video_url = conversion_result['direct_link']
+                logger.info(f"Converted to direct URL: {direct_video_url[:50]}...")
+                
+                # Prepare caption with hashtags
+                caption = cleaned_data['caption']
+                if cleaned_data['hashtags']:
+                    hashtag_text = ' '.join([f'#{tag}' for tag in cleaned_data['hashtags']])
+                    caption += f'\n\n{hashtag_text}'
+                
+                # Upload to Instagram using direct URL (no file download needed)
+                logger.info(f"Uploading video to Instagram with client {cleaned_data['client_id']}, account {cleaned_data['account_id']}")
+                success, message, response = instagram_service.upload_video(
+                    video_path=None,  # Not needed when using video_url
+                    caption=caption,
+                    hashtags=cleaned_data['hashtags'],
+                    account_id=cleaned_data['account_id'],
+                    client_id=cleaned_data['client_id'],
+                    video_url=direct_video_url
+                )
+                
+                if success:
+                    flash(f'Video uploaded to Instagram successfully! {message}', 'success')
+                    return render_template('success.html',
+                                         platform='instagram',
+                                         message=message,
+                                         client_name=next((c['name'] for c in available_clients if c['id'] == cleaned_data['client_id']), 'Unknown'),
+                                         config=app.config)
+                else:
+                    flash(f'Instagram upload failed: {message}', 'error')
+                    clients = auth_manager.get_all_clients()
+                    return render_template('instagram.html', clients=clients, config=app.config)
+                    
+            except Exception as e:
+                logger.error(f"Error during Instagram upload: {e}")
+                flash(f'Upload error: {str(e)}', 'error')
+                clients = auth_manager.get_all_clients()
+                return render_template('instagram.html', clients=clients, config=app.config)
+                
+        except Exception as e:
+            logger.error(f"Error processing Instagram upload: {e}")
+            flash(f'Error processing upload: {str(e)}', 'error')
+            clients = auth_manager.get_all_clients()
+            return render_template('instagram.html', clients=clients, config=app.config)
+
+    @app.route('/api/instagram/accounts/<client_id>')
+    def get_instagram_accounts_for_client(client_id):
+        """API endpoint to get Instagram accounts for a specific client."""
+        try:
+            # Validate client ID
+            available_clients = auth_manager.get_all_clients()
+            is_valid, error_msg = InputValidator.validate_client_id(client_id, available_clients)
+            if not is_valid:
+                return jsonify({
+                    "success": False,
+                    "error": error_msg,
+                    "accounts": []
+                })
+            
+            # Get accounts for the client
+            accounts, message = instagram_service.get_accounts_for_client(client_id)
+            
+            if message == "Success":
+                return jsonify({
+                    "success": True,
+                    "accounts": accounts
+                })
+            else:
+                return jsonify({
+                    "success": False,
+                    "error": message,
+                    "accounts": []
+                })
+                
+        except Exception as e:
+            logger.error(f"Error getting Instagram accounts for client {client_id}: {e}")
+            return jsonify({
+                "success": False,
+                "error": str(e),
+                "accounts": []
+            })
+
+    @app.route('/instagram/auth/<client_id>')
+    def instagram_auth_redirect(client_id):
+        """Redirect to Instagram OAuth for a specific client."""
+        try:
+            # Validate client ID
+            available_clients = auth_manager.get_all_clients()
+            is_valid, error_msg = InputValidator.validate_client_id(client_id, available_clients)
+            if not is_valid:
+                return jsonify({"success": False, "error": error_msg}), 400
+            
+            # Generate Instagram OAuth URL
+            auth_url = f"https://www.facebook.com/v18.0/dialog/oauth?client_id={app.config['INSTAGRAM_APP_ID']}&redirect_uri={app.config['INSTAGRAM_REDIRECT_URI']}&scope=instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,pages_manage_posts,publish_video,instagram_manage_insights&state={client_id}"
+            
+            return redirect(auth_url)
+            
+        except Exception as e:
+            logger.error(f"Error generating Instagram auth URL for client {client_id}: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @app.route('/instagram/auth-terminal/<client_id>')
+    def instagram_auth_terminal(client_id):
+        """Show Instagram OAuth URL in terminal for a specific client."""
+        try:
+            # Validate client ID
+            available_clients = auth_manager.get_all_clients()
+            is_valid, error_msg = InputValidator.validate_client_id(client_id, available_clients)
+            if not is_valid:
+                return jsonify({"success": False, "error": error_msg}), 400
+            
+            # Generate Instagram OAuth URL
+            auth_url = f"https://www.facebook.com/v18.0/dialog/oauth?client_id={app.config['INSTAGRAM_APP_ID']}&redirect_uri={app.config['INSTAGRAM_REDIRECT_URI']}&scope=instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,pages_manage_posts,publish_video,instagram_manage_insights&state={client_id}"
+            
+            print(f"\n=== Instagram OAuth URL for client {client_id} ===")
+            print(f"URL: {auth_url}")
+            print("Copy and paste this URL into your browser to authenticate with Instagram.")
+            print("After authentication, you'll be redirected to the callback URL.")
+            print("=" * 60)
+            
+            return jsonify({"success": True, "message": "OAuth URL displayed in terminal"})
+            
+        except Exception as e:
+            logger.error(f"Error generating Instagram auth URL for client {client_id}: {e}")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @app.route('/instagram_oauth_callback')
+    def instagram_oauth_callback():
+        """Handle Instagram OAuth callback."""
+        try:
+            code = request.args.get('code')
+            state = request.args.get('state')  # This will be the client_id
+            
+            if not code or not state:
+                flash('Instagram authentication failed: Missing authorization code or state', 'error')
+                return redirect(url_for('instagram_upload'))
+            
+            # Exchange code for access token
+            token_url = "https://graph.facebook.com/v18.0/oauth/access_token"
+            token_data = {
+                'client_id': app.config['INSTAGRAM_APP_ID'],
+                'client_secret': app.config['INSTAGRAM_APP_SECRET'],
+                'redirect_uri': app.config['INSTAGRAM_REDIRECT_URI'],
+                'code': code
+            }
+            
+            response = requests.post(token_url, data=token_data)
+            if response.status_code != 200:
+                flash('Instagram authentication failed: Could not exchange code for token', 'error')
+                return redirect(url_for('instagram_upload'))
+            
+            token_response = response.json()
+            access_token = token_response.get('access_token')
+            
+            if not access_token:
+                flash('Instagram authentication failed: No access token received', 'error')
+                return redirect(url_for('instagram_upload'))
+            
+            # Store the token for the client
+            token_path = os.path.join('tokens', f'instagram_token_{state}.json')
+            os.makedirs('tokens', exist_ok=True)
+            
+            with open(token_path, 'w') as f:
+                json.dump({
+                    'access_token': access_token,
+                    'client_id': state,
+                    'created_at': datetime.now().isoformat()
+                }, f, indent=2)
+            
+            flash('Instagram authentication successful! You can now upload videos.', 'success')
+            return redirect(url_for('instagram_upload'))
+            
+        except Exception as e:
+            logger.error(f"Error in Instagram OAuth callback: {e}")
+            flash(f'Instagram authentication error: {str(e)}', 'error')
+            return redirect(url_for('instagram_upload'))
 
 # n8n jobs routes
 if app.config['ENABLE_N8N_JOBS']:
@@ -692,8 +1240,7 @@ def oauth2callback():
         state = request.args.get('state')
         error = request.args.get('error')
         
-        # Log the callback parameters for debugging
-        logger.info(f"OAuth callback received - code: {auth_code[:20] if auth_code else 'None'}..., state: {state}, error: {error}")
+
         
         if error:
             logger.error(f"OAuth error: {error}")
@@ -786,4 +1333,4 @@ def internal_error(error):
 
 if __name__ == '__main__':
     logger.info("Starting YouTube Shorts Uploader...")
-    app.run(debug=True, host='0.0.0.0', port=5000) 
+    app.run(host='0.0.0.0', port=5000) 

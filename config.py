@@ -12,15 +12,7 @@ class Config:
     """Flask and API configuration loaded from environment variables or defaults."""
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'your-secret-key-here'
     
-    # Google API Project
-    GOOGLE_PROJECT_ID = os.environ.get('GOOGLE_PROJECT_ID')
-    
-    # YouTube API OAuth2 credentials
-    YOUTUBE_CLIENT_ID = os.environ.get('YOUTUBE_CLIENT_ID')
-    YOUTUBE_CLIENT_SECRET = os.environ.get('YOUTUBE_CLIENT_SECRET')
-    
-    # YouTube Channel Configuration
-    YOUTUBE_CHANNEL_ID = os.environ.get('YOUTUBE_CHANNEL_ID')
+
     
     # OAuth2 settings - Fixed to localhost
     REDIRECT_URI = 'http://localhost:5000/oauth2callback'
@@ -35,3 +27,12 @@ class Config:
     ENABLE_N8N_JOBS = os.environ.get('ENABLE_N8N_JOBS', 'true').lower() == 'true'
     ENABLE_DISCORD_JOB = os.environ.get('ENABLE_DISCORD_JOB', 'true').lower() == 'true'
     ENABLE_YOUTUBE_UPLOAD = os.environ.get('ENABLE_YOUTUBE_UPLOAD', 'true').lower() == 'true'
+    ENABLE_INSTAGRAM_UPLOAD = os.environ.get('ENABLE_INSTAGRAM_UPLOAD', 'true').lower() == 'true'
+    
+    # Instagram API Configuration
+    INSTAGRAM_APP_ID = os.environ.get('INSTAGRAM_APP_ID')
+    INSTAGRAM_APP_SECRET = os.environ.get('INSTAGRAM_APP_SECRET')
+    INSTAGRAM_REDIRECT_URI = 'http://localhost:5000/instagram_oauth_callback'
+    
+    # Gemini AI Configuration
+    GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')

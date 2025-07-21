@@ -229,83 +229,6 @@ class YouTubeServiceV2:
         
         return response
     
-    def get_video_info(self, video_id: str, client_id: Optional[str] = None) -> Tuple[bool, str, Optional[Dict]]:
-        """Get video information for a given video ID, checking quota and updating usage."""
-        try:
-            if not client_id:
-                client_id = self.current_client_id
-            
-            if not client_id:
-                return False, "No client ID specified", None
-            
-            # Check quota
-            if not self.auth_manager.can_make_request(client_id, 'videos.list', 1):
-                return False, "API quota exceeded for this client", None
-            
-            service = self._get_service(client_id)
-            
-            response = service.videos().list(
-                part='snippet,status,statistics',
-                id=video_id
-            ).execute()
-            
-            # Update quota
-            self.auth_manager.update_quota(client_id, 'videos.list', 1)
-            
-            if response['items']:
-                return True, "Success", response['items'][0]
-            else:
-                return False, "Video not found", None
-                
-        except HttpError as e:
-            error_msg = f"YouTube API error: {e.resp.status} - {e.content}"
-            logger.error(error_msg)
-            return False, error_msg, None
-        except Exception as e:
-            error_msg = f"Error getting video info: {str(e)}"
-            logger.error(error_msg)
-            return False, error_msg, None
-    
-    def set_thumbnail(self, video_id: str, thumbnail_path: str, client_id: Optional[str] = None) -> Tuple[bool, str]:
-        """Set a custom thumbnail for a video, checking quota and updating usage."""
-        try:
-            if not client_id:
-                client_id = self.current_client_id
-            
-            if not client_id:
-                return False, "No client ID specified"
-            
-            # Validate thumbnail file
-            is_valid, error_msg = InputValidator.validate_file_path(thumbnail_path)
-            if not is_valid:
-                return False, error_msg
-            
-            # Check quota
-            if not self.auth_manager.can_make_request(client_id, 'thumbnails.set', 50):
-                return False, "API quota exceeded for this client"
-            
-            service = self._get_service(client_id)
-            
-            service.thumbnails().set(
-                videoId=video_id,
-                media_body=MediaFileUpload(thumbnail_path)
-            ).execute()
-            
-            # Update quota
-            self.auth_manager.update_quota(client_id, 'thumbnails.set', 50)
-            
-            logger.info(f"Thumbnail set successfully for video {video_id}")
-            return True, "Thumbnail set successfully"
-            
-        except HttpError as e:
-            error_msg = f"YouTube API error setting thumbnail: {e.resp.status} - {e.content}"
-            logger.error(error_msg)
-            return False, error_msg
-        except Exception as e:
-            error_msg = f"Error setting thumbnail: {str(e)}"
-            logger.error(error_msg)
-            return False, error_msg
-    
     def get_quota_status(self, client_id: Optional[str] = None) -> Dict:
         """Return the quota status for a client as a dict."""
         if not client_id:
@@ -314,8 +237,4 @@ class YouTubeServiceV2:
         if not client_id:
             return {"error": "No client ID specified"}
         
-        return self.auth_manager.get_quota_status(client_id)
-    
-    def get_active_client_info(self) -> Optional[Dict]:
-        """Return info about the currently active client and channel, or None if not set."""
-        return self.auth_manager.get_active_client_info() 
+        return self.auth_manager.get_quota_status(client_id) 

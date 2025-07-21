@@ -74,40 +74,60 @@ class AuthManager:
             if not client:
                 return False, f"Client {client_id} not found"
             
-            token_path = self._get_token_path(client_id)
-            scopes = [
-                'https://www.googleapis.com/auth/youtube.upload',
-                'https://www.googleapis.com/auth/youtube.readonly'
-            ]
+            client_type = client.get('type', 'youtube')
             
-            creds = None
-            
-            # Load existing token
-            if os.path.exists(token_path):
-                try:
-                    with open(token_path, 'rb') as token:
-                        creds = pickle.load(token)
-                except Exception as e:
-                    logger.warning(f"Failed to load existing token for {client_id}: {e}")
-            
-            # Check if credentials need refresh
-            if creds and not creds.valid:
-                if creds.expired and creds.refresh_token:
+            if client_type == 'instagram':
+                # Handle Instagram clients - check if token file exists
+                token_path = os.path.join(self.tokens_dir, f'instagram_token_{client_id}.json')
+                if os.path.exists(token_path):
                     try:
-                        creds.refresh(Request())
-                        logger.info(f"Refreshed token for client {client_id}")
+                        import json
+                        with open(token_path, 'r') as f:
+                            token_data = json.load(f)
+                        if token_data.get('access_token'):
+                            self.active_client_id = client_id
+                            return True, f"Successfully authenticated Instagram client {client_id}"
                     except Exception as e:
-                        logger.warning(f"Failed to refresh token for {client_id}: {e}")
+                        logger.warning(f"Failed to load Instagram token for {client_id}: {e}")
+                
+                return False, f"Instagram authentication required for client {client_id}"
+            
+            else:
+                # Handle YouTube clients (existing logic)
+                token_path = self._get_token_path(client_id)
+                scopes = [
+                    'https://www.googleapis.com/auth/youtube.upload',
+                    'https://www.googleapis.com/auth/youtube.readonly'
+                ]
+                
+                creds = None
+                
+                # Load existing token
+                if os.path.exists(token_path):
+                    try:
+                        with open(token_path, 'rb') as token:
+                            creds = pickle.load(token)
+                    except Exception as e:
+                        logger.warning(f"Failed to load existing token for {client_id}: {e}")
+                
+                # Check if credentials need refresh
+                if creds and not creds.valid:
+                    if creds.expired and creds.refresh_token:
+                        try:
+                            creds.refresh(Request())
+                            logger.info(f"Refreshed token for client {client_id}")
+                        except Exception as e:
+                            logger.warning(f"Failed to refresh token for {client_id}: {e}")
+                            creds = None
+                    else:
                         creds = None
-                else:
-                    creds = None
-            
-            # If no valid credentials, authenticate
-            if not creds:
-                raise AuthRequired(f"Authentication required for client {client_id}")
-            
-            self.active_client_id = client_id
-            return True, f"Successfully authenticated client {client_id}"
+                
+                # If no valid credentials, authenticate
+                if not creds:
+                    raise AuthRequired(f"Authentication required for client {client_id}")
+                
+                self.active_client_id = client_id
+                return True, f"Successfully authenticated client {client_id}"
             
         except Exception as e:
             logger.error(f"Authentication failed for client {client_id}: {e}")
@@ -209,6 +229,18 @@ class AuthManager:
         if not self.active_client_id:
             return None
         
+        client = self.get_client_by_id(self.active_client_id)
+        if not client:
+            return None
+        
+        client_type = client.get('type', 'youtube')
+        
+        if client_type == 'instagram':
+            # Instagram clients don't use Google Credentials
+            # The Instagram service handles its own token management
+            return None
+        
+        # Handle YouTube clients (existing logic)
         token_path = self._get_token_path(self.active_client_id)
         if not os.path.exists(token_path):
             return None
@@ -220,19 +252,7 @@ class AuthManager:
             logger.error(f"Failed to load active credentials: {e}")
             return None
     
-    def get_active_client_info(self) -> Optional[Dict]:
-        """Return a dict with info about the currently active client and channel, or None if not set."""
-        if not self.active_client_id:
-            return None
-        
-        client = self.get_client_by_id(self.active_client_id)
-        if client:
-            return {
-                'id': client['id'],
-                'name': client['name'],
-                'active_channel_id': self.active_channel_id
-            }
-        return None
+
     
     def check_quota(self, client_id: str) -> Dict:
         """Return the quota usage dict for a client, resetting if a new day has started."""

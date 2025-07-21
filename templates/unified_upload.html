@@ -1,0 +1,854 @@
+{% extends "base.html" %}
+{% block title %}Unified Video Uploader{% endblock %}
+{% block content %}
+<!-- Main page content follows -->
+        <!-- Unified Uploader Content -->
+        <div class="row justify-content-center">
+            <div class="col-lg-12">
+                <div class="card">
+                    <div class="card-header bg-gradient-primary text-white">
+                        <h2 class="text-center mb-0">
+                            <i class="fas fa-video me-2"></i>Unified Video Uploader
+                        </h2>
+                        <p class="text-center mb-0 mt-2 opacity-75">
+                            Upload videos to YouTube Shorts and Instagram Reels from a single interface
+                        </p>
+                    </div>
+                    <div class="card-body">
+                        <!-- Flash Messages -->
+                        <div id="flashArea"></div>
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                                {% for category, message in messages %}
+                                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+                                        <i class="fas fa-{{ 'exclamation-triangle' if category == 'error' else 'check-circle' }} me-2"></i>
+                                        {{ message }}
+                                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+                        {% endwith %}
+
+                        <!-- Platform Selection -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h5><i class="fas fa-globe me-2"></i>Select Platform</h5>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <div class="card platform-card" data-platform="youtube">
+                                            <div class="card-body text-center">
+                                                <i class="fab fa-youtube fa-3x text-danger mb-3"></i>
+                                                <h5 class="card-title">YouTube Shorts</h5>
+                                                <p class="card-text text-muted">Upload to YouTube Shorts</p>
+                                                <button class="btn btn-outline-danger select-platform-btn" data-platform="youtube">
+                                                    <i class="fas fa-check me-1"></i>Select YouTube
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <div class="card platform-card" data-platform="instagram">
+                                            <div class="card-body text-center">
+                                                <i class="fab fa-instagram fa-3x text-warning mb-3"></i>
+                                                <h5 class="card-title">Instagram Reels</h5>
+                                                <p class="card-text text-muted">Upload to Instagram Reels</p>
+                                                <button class="btn btn-outline-warning select-platform-btn" data-platform="instagram">
+                                                    <i class="fas fa-check me-1"></i>Select Instagram
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Client Selection (YouTube) -->
+                        <div id="youtubeClientSection" class="client-section" style="display: none;">
+                            <div class="row mb-4">
+                                <div class="col-12">
+                                    <h5><i class="fab fa-youtube me-2"></i>Select YouTube Client</h5>
+                                    <div class="row" id="youtubeClientSelection">
+                                        {% if clients %}
+                                            {% for client in clients %}
+                                                {% if client.type != 'instagram' %}
+                                                <div class="col-md-6 mb-3">
+                                                    <div class="card client-card" data-client-id="{{ client.id }}" data-platform="youtube">
+                                                        <div class="card-body">
+                                                            <div class="d-flex justify-content-between align-items-start">
+                                                                <div>
+                                                                    <h6 class="card-title">{{ client.name }}</h6>
+                                                                    <p class="card-text text-muted mb-2">
+                                                                        <i class="fas fa-upload me-1"></i>{{ client.upload_count }} uploads
+                                                                    </p>
+                                                                </div>
+                                                                <div class="d-flex gap-2">
+                                                                    <button class="btn btn-sm btn-outline-danger select-client-btn" 
+                                                                            data-client-id="{{ client.id }}" data-platform="youtube">
+                                                                        <i class="fas fa-check me-1"></i>Select
+                                                                    </button>
+                                                                    <a href="/auth/{{ client.id }}" class="btn btn-sm btn-outline-success" 
+                                                                       target="_blank" title="Authenticate with Google">
+                                                                        <i class="fas fa-key me-1"></i>Auth
+                                                                    </a>
+                                                                    <a href="/auth-terminal/{{ client.id }}" class="btn btn-sm btn-outline-info" 
+                                                                       title="Show auth URL in terminal">
+                                                                        <i class="fas fa-terminal me-1"></i>Terminal
+                                                                    </a>
+                                                                </div>
+                                                            </div>
+                                                            <!-- Quota Status -->
+                                                            {% if quota_status and client.id in quota_status %}
+                                                                {% set quota = quota_status[client.id] %}
+                                                                <div class="mt-3">
+                                                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                                                        <small class="text-muted">API Quota</small>
+                                                                        <small class="text-muted">
+                                                                            {{ quota.used_quota }}/{{ quota.daily_quota }}
+                                                                        </small>
+                                                                    </div>
+                                                                    <div class="quota-bar">
+                                                                        {% set usage_percent = (quota.used_quota / quota.daily_quota) * 100 %}
+                                                                        {% set quota_class = 'quota-high' if usage_percent < 70 else 'quota-medium' if usage_percent < 90 else 'quota-low' %}
+                                                                        <div class="quota-fill {{ quota_class }}" 
+                                                                             style="width: {{ usage_percent }}%"></div>
+                                                                    </div>
+                                                                    <small class="text-muted">
+                                                                        Remaining: {{ quota.remaining_quota }}
+                                                                    </small>
+                                                                </div>
+                                                            {% endif %}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                {% endif %}
+                                            {% endfor %}
+                                        {% else %}
+                                            <div class="col-12">
+                                                <div class="alert alert-warning">
+                                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                                    No YouTube clients configured. Please check your clients.json file.
+                                                </div>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Client Selection (Instagram) -->
+                        <div id="instagramClientSection" class="client-section" style="display: none;">
+                            <div class="row mb-4">
+                                <div class="col-12">
+                                    <h5><i class="fab fa-instagram me-2"></i>Select Instagram Client</h5>
+                                    <div class="row" id="instagramClientSelection">
+                                        {% if clients %}
+                                            {% for client in clients %}
+                                                {% if client.type == 'instagram' %}
+                                                <div class="col-md-6 mb-3">
+                                                    <div class="card client-card" data-client-id="{{ client.id }}" data-platform="instagram">
+                                                        <div class="card-body">
+                                                            <div class="d-flex justify-content-between align-items-start">
+                                                                <div>
+                                                                    <h6 class="card-title">{{ client.name }}</h6>
+                                                                    <p class="card-text text-muted mb-2">
+                                                                        <i class="fas fa-upload me-1"></i>{{ client.upload_count }} uploads
+                                                                    </p>
+                                                                </div>
+                                                                <div class="d-flex gap-2">
+                                                                    <button class="btn btn-sm btn-outline-warning select-client-btn" 
+                                                                            data-client-id="{{ client.id }}" data-platform="instagram">
+                                                                        <i class="fas fa-check me-1"></i>Select
+                                                                    </button>
+                                                                    <a href="/instagram/auth/{{ client.id }}" class="btn btn-sm btn-outline-success" 
+                                                                       target="_blank" title="Authenticate with Instagram">
+                                                                        <i class="fab fa-instagram me-1"></i>Auth
+                                                                    </a>
+                                                                    <a href="/instagram/auth-terminal/{{ client.id }}" class="btn btn-sm btn-outline-info" 
+                                                                       title="Show auth URL in terminal">
+                                                                        <i class="fas fa-terminal me-1"></i>Terminal
+                                                                    </a>
+                                                                </div>
+                                                            </div>
+                                                            <!-- Account Status -->
+                                                            <div class="mt-3">
+                                                                <small class="text-muted">
+                                                                    <i class="fas fa-info-circle me-1"></i>
+                                                                    <span class="account-status" data-client-id="{{ client.id }}">
+                                                                        Loading accounts...
+                                                                    </span>
+                                                                </small>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                {% endif %}
+                                            {% endfor %}
+                                        {% else %}
+                                            <div class="col-12">
+                                                <div class="alert alert-warning">
+                                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                                    No Instagram clients configured. Please check your clients.json file.
+                                                </div>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Channel/Account Selection -->
+                        <div id="channelSelectionSection" style="display: none;">
+                            <div class="row mb-4">
+                                <div class="col-12">
+                                    <h5><i class="fas fa-list me-2"></i>Select Channel/Account</h5>
+                                    <div id="channelSelection">
+                                        <div class="alert alert-info">
+                                            <i class="fas fa-info-circle me-2"></i>
+                                            Please select a client first to load available channels/accounts.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+
+
+                        <!-- Upload Form -->
+                        <form method="POST" id="unifiedUploadForm">
+                            <input type="hidden" id="selected_platform" name="platform" value="">
+                            <input type="hidden" id="selected_client_id" name="client_id" value="">
+                            <input type="hidden" id="selected_channel_id" name="channel_id" value="">
+                            
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <!-- Google Drive Link -->
+                                    <div class="mb-3">
+                                        <label for="drive_link" class="form-label">
+                                            <i class="fas fa-link me-1"></i>Google Drive Link
+                                        </label>
+                                        <div class="input-group">
+                                            <input type="url" class="form-control" id="drive_link" name="drive_link" required
+                                                   placeholder="https://drive.google.com/file/d/...">
+                                            <button type="button" class="btn btn-outline-success" id="generateContentBtn" disabled>
+                                                <i class="fas fa-magic me-1"></i>AI Generate
+                                            </button>
+                                            <span class="input-group-text" id="link-conversion-status" style="display: none;">
+                                                <i class="fas fa-spinner fa-spin"></i>
+                                            </span>
+                                        </div>
+                                        <div class="validation-error" id="drive_link_error"></div>
+                                        <div class="validation-success" id="drive_link_success"></div>
+                                        <small class="text-muted">
+                                            <i class="fas fa-info-circle me-1"></i>
+                                            For Instagram uploads, view links are automatically converted to direct download links
+                                        </small>
+                                    </div>
+                                    
+                                    <!-- Filename Override (Optional) -->
+                                    <div class="mb-3" id="filenameOverrideSection" style="display: none;">
+                                        <label for="filename_override" class="form-label">
+                                            <i class="fas fa-file me-1"></i>Filename (Optional)
+                                        </label>
+                                        <input type="text" class="form-control" id="filename_override" name="filename_override"
+                                               placeholder="Enter the actual filename (e.g., 1212 Child Slavery.mp4)">
+                                        <div class="form-text">
+                                            <i class="fas fa-info-circle me-1"></i>
+                                            If the system can't detect the filename automatically, you can enter it here for better AI content generation
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Title/Caption -->
+                                    <div class="mb-3">
+                                        <label for="title" class="form-label">
+                                            <i class="fas fa-heading me-1"></i><span id="titleLabel">Title</span>
+                                        </label>
+                                        <input type="text" class="form-control" id="title" name="title" required
+                                               placeholder="Enter video title...">
+                                        <div class="validation-error" id="title_error"></div>
+                                    </div>
+                                    
+                                    <!-- Description/Caption -->
+                                    <div class="mb-3">
+                                        <label for="description" class="form-label">
+                                            <i class="fas fa-align-left me-1"></i><span id="descriptionLabel">Description</span>
+                                        </label>
+                                        <textarea class="form-control" id="description" name="description" rows="4" required
+                                                  placeholder="Enter video description..."></textarea>
+                                        <div class="validation-error" id="description_error"></div>
+                                    </div>
+                                    
+                                    <!-- Hashtags -->
+                                    <div class="mb-3">
+                                        <label for="hashtags" class="form-label">
+                                            <i class="fas fa-hashtag me-1"></i>Hashtags
+                                        </label>
+                                        <input type="text" class="form-control" id="hashtags" name="hashtags"
+                                               placeholder="Enter hashtags separated by spaces...">
+                                        <div class="form-text">Separate hashtags with spaces (e.g., #shorts #viral #trending)</div>
+                                        <div class="validation-error" id="hashtags_error"></div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-4">
+                                    <!-- Privacy Settings (YouTube only) -->
+                                    <div id="privacySection" class="mb-3" style="display: none;">
+                                        <label for="privacy" class="form-label">
+                                            <i class="fas fa-eye me-1"></i>Privacy Setting
+                                        </label>
+                                        <select class="form-select" id="privacy" name="privacy">
+                                            <option value="public">Public</option>
+                                            <option value="unlisted">Unlisted</option>
+                                            <option value="private">Private</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <!-- Upload Button -->
+                                    <div class="d-grid gap-2">
+                                        <button type="submit" class="btn btn-primary btn-lg" id="uploadBtn" disabled>
+                                            <i class="fas fa-upload me-2"></i>Upload Video
+                                        </button>
+                                    </div>
+                                    
+                                    <!-- Upload Progress -->
+                                    <div id="uploadProgress" class="mt-3" style="display: none;">
+                                        <div class="progress">
+                                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                                 role="progressbar" style="width: 0%"></div>
+                                        </div>
+                                        <small class="text-muted mt-2 d-block">Uploading video...</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            let selectedPlatform = '';
+            let selectedClientId = '';
+            let selectedChannelId = '';
+
+            // Platform selection
+            document.querySelectorAll('.select-platform-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const platform = this.dataset.platform;
+                    selectPlatform(platform);
+                    updateGenerateButtonState(); // Update generate button state when platform changes
+                });
+            });
+
+            function selectPlatform(platform) {
+                selectedPlatform = platform;
+                selectedClientId = '';
+                selectedChannelId = '';
+                
+                // Update UI
+                document.querySelectorAll('.platform-card').forEach(card => {
+                    card.classList.remove('selected');
+                });
+                document.querySelector(`[data-platform="${platform}"]`).classList.add('selected');
+                
+                // Show/hide client sections
+                document.querySelectorAll('.client-section').forEach(section => {
+                    section.style.display = 'none';
+                });
+                
+                if (platform === 'youtube') {
+                    document.getElementById('youtubeClientSection').style.display = 'block';
+                    document.getElementById('titleLabel').textContent = 'Title';
+                    document.getElementById('descriptionLabel').textContent = 'Description';
+                    document.getElementById('privacySection').style.display = 'block';
+                } else if (platform === 'instagram') {
+                    document.getElementById('instagramClientSection').style.display = 'block';
+                    document.getElementById('titleLabel').textContent = 'Caption';
+                    document.getElementById('descriptionLabel').textContent = 'Caption';
+                    document.getElementById('privacySection').style.display = 'none';
+                }
+                
+                // Hide channel selection
+                document.getElementById('channelSelectionSection').style.display = 'none';
+                document.getElementById('selected_platform').value = platform;
+                updateUploadButton();
+            }
+
+            // Client selection
+            document.querySelectorAll('.select-client-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const clientId = this.dataset.clientId;
+                    const platform = this.dataset.platform;
+                    selectClient(clientId, platform);
+                });
+            });
+
+            function selectClient(clientId, platform) {
+                selectedClientId = clientId;
+                selectedPlatform = platform;
+                selectedChannelId = '';
+                
+                // Update UI
+                document.querySelectorAll('.client-card').forEach(card => {
+                    card.classList.remove('selected');
+                });
+                document.querySelector(`[data-client-id="${clientId}"][data-platform="${platform}"]`).classList.add('selected');
+                
+                document.getElementById('selected_client_id').value = clientId;
+                document.getElementById('selected_platform').value = platform;
+                
+                // Show channel selection with a highlight
+                const channelSection = document.getElementById('channelSelectionSection');
+                channelSection.style.display = 'block';
+                channelSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                
+                // Add a temporary highlight to draw attention
+                channelSection.style.backgroundColor = '#fff3cd';
+                channelSection.style.border = '2px solid #ffc107';
+                channelSection.style.borderRadius = '8px';
+                channelSection.style.padding = '15px';
+                setTimeout(() => {
+                    channelSection.style.backgroundColor = '';
+                    channelSection.style.border = '';
+                    channelSection.style.borderRadius = '';
+                    channelSection.style.padding = '';
+                }, 3000);
+                
+                // Load channels/accounts
+                loadChannelsOrAccounts(clientId, platform);
+                
+                // Update labels based on platform
+                if (platform === 'youtube') {
+                    document.getElementById('titleLabel').textContent = 'Title';
+                    document.getElementById('descriptionLabel').textContent = 'Description';
+                    document.getElementById('privacySection').style.display = 'block';
+                } else {
+                    document.getElementById('titleLabel').textContent = 'Caption';
+                    document.getElementById('descriptionLabel').textContent = 'Caption';
+                    document.getElementById('privacySection').style.display = 'none';
+                }
+                
+                updateUploadButton();
+            }
+
+            function loadChannelsOrAccounts(clientId, platform) {
+                const channelSection = document.getElementById('channelSelectionSection');
+                const channelSelection = document.getElementById('channelSelection');
+                
+                channelSelection.innerHTML = '<div class="alert alert-info"><i class="fas fa-spinner fa-spin me-2"></i>Loading channels/accounts...</div>';
+                channelSection.style.display = 'block';
+                
+                if (platform === 'youtube') {
+                    // Load YouTube channels
+                    fetch(`/api/channels/${clientId}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success && data.channels.length > 0) {
+                                let html = '<div class="row">';
+                                data.channels.forEach(channel => {
+                                    html += `
+                                        <div class="col-md-6 mb-3">
+                                            <div class="card channel-card" data-channel-id="${channel.id}">
+                                                <div class="card-body">
+                                                    <h6 class="card-title">${channel.title}</h6>
+                                                    <p class="card-text text-muted">${channel.description || 'No description'}</p>
+                                                    <button class="btn btn-sm btn-outline-primary select-channel-btn" 
+                                                            data-channel-id="${channel.id}">
+                                                        <i class="fas fa-check me-1"></i>Select Channel
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `;
+                                });
+                                html += '</div>';
+                                channelSelection.innerHTML = html;
+                                
+                                // Add event listeners to channel buttons
+                                document.querySelectorAll('.select-channel-btn').forEach(btn => {
+                                    btn.addEventListener('click', function() {
+                                        const channelId = this.dataset.channelId;
+                                        selectChannel(channelId);
+                                    });
+                                });
+                            } else {
+                                channelSelection.innerHTML = '<div class="alert alert-warning"><i class="fas fa-exclamation-triangle me-2"></i>No channels found for this client.</div>';
+                            }
+                        })
+                        .catch(error => {
+                            channelSelection.innerHTML = '<div class="alert alert-danger"><i class="fas fa-exclamation-triangle me-2"></i>Error loading channels.</div>';
+                        });
+                } else if (platform === 'instagram') {
+                    // Load Instagram accounts
+                    fetch(`/api/instagram/accounts/${clientId}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success && data.accounts.length > 0) {
+                                let html = '<div class="row">';
+                                data.accounts.forEach(account => {
+                                    html += `
+                                        <div class="col-md-6 mb-3">
+                                            <div class="card channel-card" data-channel-id="${account.id}">
+                                                <div class="card-body">
+                                                    <h6 class="card-title">${account.name}</h6>
+                                                    <p class="card-text text-muted">${account.username || 'No username'}</p>
+                                                    <button class="btn btn-sm btn-outline-warning select-channel-btn" 
+                                                            data-channel-id="${account.id}">
+                                                        <i class="fas fa-check me-1"></i>Select Account
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `;
+                                });
+                                html += '</div>';
+                                channelSelection.innerHTML = html;
+                                
+                                // Add event listeners to account buttons
+                                document.querySelectorAll('.select-channel-btn').forEach(btn => {
+                                    btn.addEventListener('click', function() {
+                                        const channelId = this.dataset.channelId;
+                                        selectChannel(channelId);
+                                    });
+                                });
+                            } else {
+                                channelSelection.innerHTML = '<div class="alert alert-warning"><i class="fas fa-exclamation-triangle me-2"></i>No accounts found for this client.</div>';
+                            }
+                        })
+                        .catch(error => {
+                            channelSelection.innerHTML = '<div class="alert alert-danger"><i class="fas fa-exclamation-triangle me-2"></i>Error loading accounts.</div>';
+                        });
+                }
+            }
+
+            function selectChannel(channelId) {
+                selectedChannelId = channelId;
+                
+                // Update UI
+                document.querySelectorAll('.channel-card').forEach(card => {
+                    card.classList.remove('selected');
+                });
+                document.querySelector(`[data-channel-id="${channelId}"]`).classList.add('selected');
+                
+                // Update hidden input
+                document.getElementById('selected_channel_id').value = channelId;
+                
+                // Show success message
+                const channelSection = document.getElementById('channelSelectionSection');
+                const successDiv = document.createElement('div');
+                successDiv.className = 'alert alert-success alert-dismissible fade show';
+                successDiv.innerHTML = `
+                    <i class="fas fa-check-circle me-2"></i>Channel selected successfully! Channel ID: ${channelId}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                channelSection.insertBefore(successDiv, channelSection.firstChild);
+                
+                // Auto-dismiss after 5 seconds
+                setTimeout(() => {
+                    if (successDiv.parentNode) {
+                        successDiv.remove();
+                    }
+                }, 5000);
+                
+                updateUploadButton();
+            }
+
+            function updateUploadButton() {
+                const uploadBtn = document.getElementById('uploadBtn');
+                const isComplete = selectedPlatform && selectedClientId && selectedChannelId;
+                
+                uploadBtn.disabled = !isComplete;
+                
+                if (isComplete) {
+                    const platformText = selectedPlatform === 'youtube' ? 'YouTube' : 'Instagram';
+                    uploadBtn.innerHTML = `<i class="fas fa-upload me-2"></i>Upload to ${platformText}`;
+                } else {
+                    uploadBtn.innerHTML = `<i class="fas fa-upload me-2"></i>Upload Video`;
+                }
+                
+
+            }
+            
+
+
+            // Form submission
+            document.getElementById('unifiedUploadForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // Get values from hidden inputs (these are what actually get sent to server)
+                const platformValue = document.getElementById('selected_platform').value;
+                const clientIdValue = document.getElementById('selected_client_id').value;
+                const channelIdValue = document.getElementById('selected_channel_id').value;
+                
+                if (!platformValue) {
+                    alert('Please select a platform (YouTube or Instagram) first.');
+                    return;
+                }
+                
+                if (!clientIdValue) {
+                    alert('Please select a client first.');
+                    return;
+                }
+                
+                if (!channelIdValue) {
+                    alert('Please select a channel/account. The channel selection should appear after you select a client.');
+                    // Show the channel selection section if it's hidden
+                    document.getElementById('channelSelectionSection').style.display = 'block';
+                    return;
+                }
+                
+                // For Instagram uploads, use the converted direct link if available
+                if (selectedPlatform === 'instagram') {
+                    const driveLinkInput = document.getElementById('drive_link');
+                    const directLink = driveLinkInput.getAttribute('data-direct-link');
+                    
+                    if (directLink) {
+                        // Create a hidden input for the direct link
+                        let hiddenInput = document.getElementById('direct_drive_link');
+                        if (!hiddenInput) {
+                            hiddenInput = document.createElement('input');
+                            hiddenInput.type = 'hidden';
+                            hiddenInput.id = 'direct_drive_link';
+                            hiddenInput.name = 'direct_drive_link';
+                            this.appendChild(hiddenInput);
+                        }
+                        hiddenInput.value = directLink;
+                    }
+                }
+                
+                // Show progress
+                document.getElementById('uploadProgress').style.display = 'block';
+                document.getElementById('uploadBtn').disabled = true;
+                
+                try {
+                    // Submit form
+                    this.submit();
+                } catch (error) {
+                    console.error('Error submitting form:', error);
+                    alert('Error submitting form: ' + error.message);
+                }
+            });
+
+            // Drive link validation and conversion
+            document.getElementById('drive_link').addEventListener('blur', function() {
+                const link = this.value.trim();
+                if (link) {
+                    // First validate the link
+                    fetch('/api/validate-link', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ drive_link: link })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        const errorDiv = document.getElementById('drive_link_error');
+                        const successDiv = document.getElementById('drive_link_success');
+                        
+                        if (data.success) {
+                            errorDiv.textContent = '';
+                            
+                            // If Instagram is selected, also convert to direct link
+                            if (selectedPlatform === 'instagram') {
+                                // Show conversion loading indicator
+                                const conversionStatus = document.getElementById('link-conversion-status');
+                                conversionStatus.style.display = 'inline-block';
+                                
+                                fetch('/api/convert-drive-link', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                    },
+                                    body: JSON.stringify({ drive_link: link })
+                                })
+                                .then(response => response.json())
+                                .then(convertData => {
+                                    // Hide conversion loading indicator
+                                    conversionStatus.style.display = 'none';
+                                    
+                                    if (convertData.success) {
+                                        successDiv.innerHTML = `
+                                            ✓ Valid Google Drive link<br>
+                                            <small class="text-info">
+                                                <i class="fas fa-sync me-1"></i>Converted to direct link for Instagram
+                                            </small>
+                                        `;
+                                        // Store the converted link for form submission
+                                        document.getElementById('drive_link').setAttribute('data-direct-link', convertData.direct_link);
+                                    } else {
+                                        successDiv.textContent = '✓ Valid Google Drive link (conversion failed)';
+                                    }
+                                })
+                                .catch(error => {
+                                    // Hide conversion loading indicator
+                                    conversionStatus.style.display = 'none';
+                                    successDiv.textContent = '✓ Valid Google Drive link (conversion failed)';
+                                });
+                            } else {
+                                successDiv.textContent = '✓ Valid Google Drive link';
+                            }
+                            
+                            this.classList.remove('is-invalid');
+                            this.classList.add('is-valid');
+                        } else {
+                            successDiv.textContent = '';
+                            errorDiv.textContent = data.error;
+                            this.classList.remove('is-valid');
+                            this.classList.add('is-invalid');
+                        }
+                    });
+                }
+            });
+
+            // Gemini AI Content Generation
+            document.getElementById('generateContentBtn').addEventListener('click', function() {
+                const driveLink = document.getElementById('drive_link').value.trim();
+                const platform = selectedPlatform;
+                const filenameOverride = document.getElementById('filename_override').value.trim();
+                
+                if (!driveLink) {
+                    alert('Please enter a Google Drive link first');
+                    return;
+                }
+                
+                if (!platform) {
+                    alert('Please select a platform first');
+                    return;
+                }
+                
+                // Show loading state
+                const originalText = this.innerHTML;
+                this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Generating...';
+                this.disabled = true;
+                
+                // Call Gemini API
+                fetch('/api/generate-content', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        drive_link: driveLink,
+                        platform: platform,
+                        filename_override: filenameOverride
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Restore button state
+                    this.innerHTML = originalText;
+                    this.disabled = false;
+                    
+                                            if (data.success) {
+                            // Fill in the form fields with generated content
+                            document.getElementById('title').value = data.content.title || '';
+                            document.getElementById('description').value = data.content.description || '';
+                            document.getElementById('hashtags').value = data.content.hashtags || '';
+                            
+                            // Show success message
+                            const successDiv = document.getElementById('drive_link_success');
+                            const isFallback = data.fallback || false;
+                            const messageClass = isFallback ? 'text-warning' : 'text-success';
+                            const messageIcon = isFallback ? 'fa-exclamation-triangle' : 'fa-magic';
+                            const messageText = isFallback ? 'Fallback content generated' : 'AI content generated';
+                            
+                            // Check if filename is generic and show override option
+                            const filename = data.filename || '';
+                            const isGenericFilename = filename.startsWith('video_') || filename.startsWith('file_');
+                            
+                            if (isGenericFilename) {
+                                document.getElementById('filenameOverrideSection').style.display = 'block';
+                                successDiv.innerHTML = `
+                                    ✓ Valid Google Drive link<br>
+                                    <small class="${messageClass}">
+                                        <i class="fas ${messageIcon} me-1"></i>${messageText} for "${data.filename}"
+                                        ${isFallback ? '<br><small class="text-muted">(Gemini API rate limited - using basic template)</small>' : ''}
+                                        <br><small class="text-info"><i class="fas fa-info-circle me-1"></i>Generic filename detected - you can enter the actual filename above for better content</small>
+                                    </small>
+                                `;
+                            } else {
+                                document.getElementById('filenameOverrideSection').style.display = 'none';
+                                successDiv.innerHTML = `
+                                    ✓ Valid Google Drive link<br>
+                                    <small class="${messageClass}">
+                                        <i class="fas ${messageIcon} me-1"></i>${messageText} for "${data.filename}"
+                                        ${isFallback ? '<br><small class="text-muted">(Gemini API rate limited - using basic template)</small>' : ''}
+                                    </small>
+                                `;
+                            }
+                        
+                        // Trigger validation for the filled fields
+                        document.getElementById('title').dispatchEvent(new Event('input'));
+                        document.getElementById('description').dispatchEvent(new Event('input'));
+                        document.getElementById('hashtags').dispatchEvent(new Event('input'));
+                        
+                    } else {
+                        alert(`Error generating content: ${data.error}`);
+                    }
+                })
+                .catch(error => {
+                    // Restore button state
+                    this.innerHTML = originalText;
+                    this.disabled = false;
+                    alert(`Error: ${error.message}`);
+                });
+            });
+
+            // Enable/disable generate content button based on drive link and platform selection
+            function updateGenerateButtonState() {
+                const driveLink = document.getElementById('drive_link').value.trim();
+                const generateBtn = document.getElementById('generateContentBtn');
+                
+                if (driveLink && selectedPlatform) {
+                    generateBtn.disabled = false;
+                } else {
+                    generateBtn.disabled = true;
+                }
+            }
+
+            // Add event listeners for button state updates
+            document.getElementById('drive_link').addEventListener('input', updateGenerateButtonState);
+        </script>
+
+        <style>
+            .platform-card, .client-card, .channel-card {
+                cursor: pointer;
+                transition: all 0.3s ease;
+            }
+            
+            .platform-card:hover, .client-card:hover, .channel-card:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+            }
+            
+            .platform-card.selected, .client-card.selected, .channel-card.selected {
+                border-color: var(--primary-color);
+                box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.3);
+            }
+            
+            .platform-card[data-platform="youtube"].selected {
+                border-color: #dc3545;
+                box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.3);
+            }
+            
+            .platform-card[data-platform="instagram"].selected {
+                border-color: #ffc107;
+                box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.3);
+            }
+            
+            .client-card[data-platform="youtube"].selected {
+                border-color: #dc3545;
+                box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.3);
+            }
+            
+            .client-card[data-platform="instagram"].selected {
+                border-color: #ffc107;
+                box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.3);
+            }
+            
+            .channel-card.selected {
+                border-color: var(--primary-color);
+                box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.3);
+            }
+        </style>
+{% endblock %} 

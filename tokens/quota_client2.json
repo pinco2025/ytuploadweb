@@ -1,8 +1,9 @@
 {
   "daily_quota": 10000,
-  "used_quota": 5,
-  "last_reset": "2025-07-18T04:28:45.835106",
+  "used_quota": 3242,
+  "last_reset": "2025-07-21T02:37:57.478249",
   "operations": {
-    "channels.list": 5
+    "channels.list": 42,
+    "videos.insert": 3200
   }
 }

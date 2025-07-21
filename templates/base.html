@@ -14,10 +14,10 @@
         <div class="container-fluid">
             <a class="navbar-brand fw-bold text-white" style="font-size:1.6rem; letter-spacing:1px;" href="/">Faceless Video Gen Engine</a>
             <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-4">
-                {% if config.ENABLE_YOUTUBE_UPLOAD %}
+                {% if config.ENABLE_YOUTUBE_UPLOAD or config.ENABLE_INSTAGRAM_UPLOAD %}
                 <li class="nav-item">
                     <a class="nav-link{% if request.path == '/' %} active{% endif %}" href="/">
-                        <i class="fas fa-video me-1"></i>YouTube Uploader
+                        <i class="fas fa-video me-1"></i>Unified Uploader
                     </a>
                 </li>
                 {% endif %}

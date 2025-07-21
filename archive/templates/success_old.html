@@ -47,64 +47,14 @@
                     <div class="video-link">
                         <div class="row align-items-center">
                             <div class="col-md-8">
-                                <h6><i class="fab fa-instagram me-2"></i>Instagram Upload Status</h6>
+                                <h6><i class="fab fa-instagram me-2"></i>Instagram Upload</h6>
                                 <p class="mb-0 text-break">{{ message or 'Video uploaded to Instagram successfully!' }}</p>
-                                
-                                {% if 'Container ID' in message %}
-                                    <small class="text-muted">
-                                        <i class="fas fa-info-circle me-1"></i>
-                                        Upload container created. Video is being processed by Instagram.
-                                    </small>
-                                {% elif 'FINISHED' in message %}
-                                    <small class="text-success">
-                                        <i class="fas fa-check-circle me-1"></i>
-                                        Upload completed successfully!
-                                    </small>
-                                {% elif 'ERROR' in message or 'FAILED' in message %}
-                                    <small class="text-danger">
-                                        <i class="fas fa-exclamation-triangle me-1"></i>
-                                        Upload encountered an issue. Please check Instagram for details.
-                                    </small>
-                                {% else %}
-                                    <small class="text-muted">
-                                        <i class="fas fa-clock me-1"></i>
-                                        Upload status: Processing. Check your Instagram account.
-                                    </small>
-                                {% endif %}
+                                <small class="text-muted">Check your Instagram account to see the uploaded video</small>
                             </div>
                             <div class="col-md-4 text-end">
                                 <a href="https://www.instagram.com" target="_blank" class="btn btn-outline-warning">
                                     <i class="fab fa-instagram me-1"></i>View on Instagram
                                 </a>
-                            </div>
-                        </div>
-                    </div>
-                    {% endif %}
-                    
-                    <!-- Instagram Upload Status Details -->
-                    {% if platform == 'instagram' %}
-                    <div class="upload-status-info mt-3">
-                        <h6><i class="fas fa-info-circle me-2"></i>Upload Details</h6>
-                        <div class="alert alert-info">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <p class="mb-1"><strong>Status:</strong> 
-                                        {% if 'FINISHED' in message %}
-                                            <span class="text-success">Completed</span>
-                                        {% elif 'Container ID' in message %}
-                                            <span class="text-warning">Processing</span>
-                                        {% elif 'ERROR' in message or 'FAILED' in message %}
-                                            <span class="text-danger">Failed</span>
-                                        {% else %}
-                                            <span class="text-muted">Unknown</span>
-                                        {% endif %}
-                                    </p>
-                                    <p class="mb-1"><strong>Retry Attempts:</strong> Up to 10 attempts with 30-second delays</p>
-                                </div>
-                                <div class="col-md-6">
-                                    <p class="mb-1"><strong>Processing Time:</strong> Usually 1-5 minutes</p>
-                                    <p class="mb-1"><strong>Next Steps:</strong> Check Instagram app for final status</p>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -229,7 +179,7 @@ function copyToClipboard(text) {
 setInterval(function() {
     // You could add an API call here to refresh quota status
     // For now, we'll just show a message
-    // console.log('Quota status can be refreshed here');
+    console.log('Quota status can be refreshed here');
 }, 30000);
 {% endif %}
 </script>
