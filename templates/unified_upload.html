@@ -630,9 +630,14 @@
             document.getElementById('description').addEventListener('input', validateDescription);
             document.getElementById('hashtags').addEventListener('input', validateHashtags);
             // Enable Bootstrap tooltips for all fields
-            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-            tooltipTriggerList.forEach(function (tooltipTriggerEl) {
-              new bootstrap.Tooltip(tooltipTriggerEl);
+            document.getElementById('drive_link').addEventListener('input', updateGenerateButtonState);
+
+            // Enable Bootstrap tooltips for all fields, after DOM and Bootstrap are loaded
+            document.addEventListener('DOMContentLoaded', function() {
+              var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+              tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+                new bootstrap.Tooltip(tooltipTriggerEl);
+              });
             });
 
             // Gemini AI Content Generation
