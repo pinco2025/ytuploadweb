@@ -8,6 +8,7 @@ from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload
 from auth_manager import AuthManager
 from validators import InputValidator
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +87,12 @@ class YouTubeServiceV2:
             is_valid, error_msg = InputValidator.validate_file_path(video_path)
             if not is_valid:
                 return False, error_msg, None
-            
+
+            # Fallback sanitize title before validation and upload
+            def sanitize_title(title):
+                return re.sub(r'[<>&"\']', '', title)
+            title = sanitize_title(title)
+
             is_valid, error_msg = InputValidator.validate_video_title(title)
             if not is_valid:
                 return False, error_msg, None
