@@ -217,21 +217,32 @@ Requirements:
             title = content.get('title', '')
             description = content.get('description', '')
             hashtags = content.get('hashtags', '')
-            
+
+            # Sanitize title to remove problematic characters for YouTube
+            def sanitize_title(title):
+                # Remove <, >, &, ", '
+                return re.sub(r'[<>&"\t]', '', title)
+            if platform == "youtube":
+                sanitized_title = sanitize_title(title)
+                if sanitized_title != title:
+                    logger.warning(f"Sanitized YouTube title: '{title}' -> '{sanitized_title}'")
+                content['title'] = sanitized_title
+                title = sanitized_title
+
             # Check if content exists
             if not title or not description or not hashtags:
                 return False
-            
+
             # Validate hashtag count
             hashtag_list = hashtags.split()
             max_hashtags = 20  # Maximum allowed hashtags
-            
+
             if len(hashtag_list) > max_hashtags:
                 logger.warning(f"Too many hashtags generated: {len(hashtag_list)} (max {max_hashtags})")
                 # Truncate hashtags to limit
                 content['hashtags'] = ' '.join(hashtag_list[:max_hashtags])
                 logger.info(f"Truncated hashtags to {max_hashtags}")
-            
+
             # Platform-specific validation
             if platform == "youtube":
                 if len(title) > 100:
@@ -240,7 +251,7 @@ Requirements:
                 if len(description) > 5000:
                     logger.warning(f"YouTube description too long: {len(description)} chars")
                     return False
-                    
+
             elif platform == "instagram":
                 if len(title) > 125:
                     logger.warning(f"Instagram title too long: {len(title)} chars")
@@ -248,9 +259,9 @@ Requirements:
                 if len(description) > 2200:
                     logger.warning(f"Instagram description too long: {len(description)} chars")
                     return False
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(f"Error validating content: {e}")
             return False
