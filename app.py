@@ -1491,6 +1491,11 @@ def bulk_youtube_upload():
             title = filename
             description = filename
             hashtags = []
+        # Fix: Strip '#' for tags, add hashtags to description
+        tags = [tag.lstrip('#') for tag in hashtags]
+        if tags:
+            hashtag_text = ' '.join([f'#{tag}' for tag in tags])
+            description += f'\n\n{hashtag_text}'
         # 5. Upload to YouTube (skip if testing)
         if TESTING_BULK_UPLOAD:
             success, message, response = True, '[TEST MODE] Upload skipped', None
@@ -1499,7 +1504,7 @@ def bulk_youtube_upload():
                 video_path=local_video_path,
                 title=title,
                 description=description,
-                tags=hashtags,
+                tags=tags,
                 privacy_status='public',
                 channel_id=channel_id,
                 client_id=client_id
@@ -1575,6 +1580,11 @@ def bulk_uploader():
                 title = filename
                 description = filename
                 hashtags = []
+            # Fix: Strip '#' for tags, add hashtags to description
+            tags = [tag.lstrip('#') for tag in hashtags]
+            if tags:
+                hashtag_text = ' '.join([f'#{tag}' for tag in tags])
+                description += f'\n\n{hashtag_text}'
             # 5. Upload to YouTube (skip if testing)
             if TESTING_BULK_UPLOAD:
                 success, message, response = True, '[TEST MODE] Upload skipped', None
@@ -1583,7 +1593,7 @@ def bulk_uploader():
                     video_path=local_video_path,
                     title=title,
                     description=description,
-                    tags=hashtags,
+                    tags=tags,
                     privacy_status='public',
                     channel_id=channel_id,
                     client_id=client_id
