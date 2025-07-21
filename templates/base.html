@@ -35,6 +35,11 @@
                     </a>
                 </li>
                 {% endif %}
+                <li class="nav-item">
+                    <a class="nav-link{% if request.path.startswith('/bulk-uploader') %} active{% endif %}" href="/bulk-uploader">
+                        <i class="fas fa-upload me-1"></i>Bulk Uploader
+                    </a>
+                </li>
             </ul>
             <div class="d-flex">
                 <button class="btn btn-primary btn-lg px-4 me-2" style="font-weight:600;" data-bs-toggle="modal" data-bs-target="#n8nConfigModal">
@@ -117,5 +122,34 @@
     });
     </script>
     {% block scripts %}{% endblock %}
+    <!-- Toast Notification Container -->
+    <div aria-live="polite" aria-atomic="true" style="position: fixed; top: 1rem; right: 1rem; z-index: 3000; min-width: 300px;">
+      <div id="toastContainer"></div>
+    </div>
+    <script>
+    // Global toast notification function
+    function showToast(message, type = 'info', delay = 4000) {
+      const toastId = 'toast-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+      const icon = type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-triangle' : 'fa-info-circle';
+      const bg = type === 'success' ? 'bg-success' : type === 'error' ? 'bg-danger' : 'bg-primary';
+      const html = `
+        <div id="${toastId}" class="toast align-items-center text-white ${bg} border-0 mb-2" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="${delay}">
+          <div class="d-flex">
+            <div class="toast-body">
+              <i class="fas ${icon} me-2"></i>${message}
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+          </div>
+        </div>`;
+      const container = document.getElementById('toastContainer');
+      container.insertAdjacentHTML('beforeend', html);
+      const toastEl = document.getElementById(toastId);
+      const toast = new bootstrap.Toast(toastEl);
+      toast.show();
+      toastEl.addEventListener('hidden.bs.toast', function() {
+        toastEl.remove();
+      });
+    }
+    </script>
 </body>
 </html> 

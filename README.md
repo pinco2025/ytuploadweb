@@ -83,6 +83,13 @@ Set any to `false` to hide its routes and navigation. The n8n webhook config mod
 - Navigation links for all enabled modules
 - Consistent, modern look across all pages
 
+## ⚡ Performance Optimizations
+
+- **Lazy Loading:** All icon assets and images (where used) are loaded with `loading="lazy"` for faster initial page load.
+- **Defer JS Loading:** Bootstrap and other scripts are loaded with `defer` to avoid blocking rendering.
+- **JS Optimization:** No custom JS files are present; all scripts are loaded from CDN. If you add custom JS, use a bundler/minifier (e.g., esbuild, Webpack) and place files in `static/js/`.
+- **Input Sanitization:** All user input is validated and sanitized server-side using the `InputValidator` class in `validators.py`. This prevents XSS and other injection attacks.
+
 ## 🏁 Setup Instructions
 
 1. **Clone the repository**

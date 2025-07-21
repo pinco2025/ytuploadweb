@@ -20,6 +20,32 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 import pickle
 from google_drive_service import GoogleDriveService
 from gemini_service import GeminiService
+import atexit
+import shutil
+import re
+
+# Add a flag for testing environment
+TESTING_BULK_UPLOAD = os.environ.get('TESTING_BULK_UPLOAD', 'false').lower() == 'true'
+
+app = Flask(__name__)
+app.config.from_object(Config)
+
+# Move these lines AFTER app is defined
+UPLOADS_DIR = app.config['UPLOAD_FOLDER']
+
+def clear_uploads_dir():
+    if os.path.exists(UPLOADS_DIR):
+        for filename in os.listdir(UPLOADS_DIR):
+            file_path = os.path.join(UPLOADS_DIR, filename)
+            try:
+                if os.path.isfile(file_path) or os.path.islink(file_path):
+                    os.unlink(file_path)
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)
+            except Exception as e:
+                logger.warning(f'Failed to delete {file_path}: {e}')
+
+atexit.register(clear_uploads_dir)
 
 # Allow OAuth2 to work with HTTP for localhost development
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
@@ -34,9 +60,6 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
-
-app = Flask(__name__)
-app.config.from_object(Config)
 
 # Ensure upload directory exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -1330,6 +1353,278 @@ def internal_error(error):
         "success": False,
         "error": "Internal server error"
     }), 500
+
+@app.route('/bulk-instagram-upload', methods=['GET', 'POST'])
+def bulk_instagram_upload():
+    """Bulk upload videos to Instagram from multiple Google Drive links."""
+    if request.method == 'GET':
+        # Render the bulk upload form/modal
+        clients = [c for c in auth_manager.get_all_clients() if c.get('type') == 'instagram']
+        return render_template('bulk_instagram_upload.html', clients=clients, config=app.config)
+
+    # POST: process bulk upload
+    links_raw = request.form.get('drive_links', '')
+    client_id = request.form.get('client_id', '')
+    account_id = request.form.get('account_id', '')
+    # Split links by line or comma
+    links = [l.strip() for l in re.split(r'[\n,]+', links_raw) if l.strip()]
+    results = []
+    for link in links:
+        # 1. Convert to direct link
+        conversion_result = drive_service.convert_to_direct_link(link)
+        if not conversion_result['success']:
+            results.append({'link': link, 'success': False, 'error': f"Drive link conversion failed: {conversion_result.get('error', 'Unknown error')}"})
+            continue
+        direct_link = conversion_result['direct_link']
+        # 2. Extract filename using get_file_info (uses service account if available)
+        file_info = drive_service.get_file_info(link)
+        filename = None
+        extraction_method = None
+        if file_info and 'name' in file_info:
+            filename = file_info['name']
+            extraction_method = file_info.get('extracted_with', 'unknown')
+        # Fallback: try to extract from direct link
+        if not filename and 'direct_link' in conversion_result:
+            from urllib.parse import urlparse, parse_qs
+            parsed = urlparse(conversion_result['direct_link'])
+            qs = parse_qs(parsed.query)
+            if 'id' in qs:
+                filename = f"video_{qs['id'][0][:8]}"
+                extraction_method = 'direct_link_fallback'
+        if not filename:
+            filename = link.split('/')[-1]
+            extraction_method = 'url_split_fallback'
+        # 3. Generate content with Gemini (skip if testing)
+        if TESTING_BULK_UPLOAD:
+            caption = f'[TEST MODE] Caption for {filename}'
+            hashtags = ['#test', '#bulk', '#upload']
+        elif gemini_service:
+            gemini_content = gemini_service.generate_content(filename, platform='instagram')
+            if not gemini_content.get('success', True):
+                results.append({'link': link, 'success': False, 'error': f"Gemini error: {gemini_content.get('error', 'Unknown error')}", 'filename': filename, 'extraction_method': extraction_method})
+                continue
+            caption = gemini_content.get('description', '')
+            hashtags = gemini_content.get('hashtags', '').split()
+        else:
+            caption = filename
+            hashtags = []
+        # 4. Upload to Instagram (skip if testing)
+        if TESTING_BULK_UPLOAD:
+            success, message, response = True, '[TEST MODE] Upload skipped', None
+        else:
+            success, message, response = instagram_service.upload_video(
+                video_path=None,
+                caption=caption,
+                hashtags=hashtags,
+                account_id=account_id,
+                client_id=client_id,
+                video_url=direct_link
+            )
+        results.append({'link': link, 'success': success, 'message': message, 'response': response, 'filename': filename, 'extraction_method': extraction_method})
+    # Render results page
+    return render_template('bulk_instagram_result.html', results=results, config=app.config)
+
+@app.route('/clear-bulk-instagram-uploads', methods=['POST'])
+def clear_bulk_instagram_uploads():
+    """Clear all current bulk Instagram uploads (delete all files in uploads dir)."""
+    try:
+        clear_uploads_dir()
+        return jsonify({'success': True, 'message': 'All bulk Instagram uploads cleared.'})
+    except Exception as e:
+        logger.error(f'Error clearing bulk uploads: {e}')
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/bulk-youtube-upload', methods=['GET', 'POST'])
+def bulk_youtube_upload():
+    """Bulk upload videos to YouTube from multiple Google Drive links (max 10)."""
+    if request.method == 'GET':
+        clients = [c for c in auth_manager.get_all_clients() if c.get('type') != 'instagram']
+        return render_template('bulk_youtube_upload.html', clients=clients, config=app.config)
+
+    # POST: process bulk upload
+    links_raw = request.form.get('drive_links', '')
+    client_id = request.form.get('client_id', '')
+    channel_id = request.form.get('channel_id', '')
+    links = [l.strip() for l in re.split(r'[\n,]+', links_raw) if l.strip()]
+    if len(links) > 10:
+        return render_template('bulk_youtube_upload.html', clients=[c for c in auth_manager.get_all_clients() if c.get('type') != 'instagram'], config=app.config, error='You can only upload up to 10 videos at a time.')
+    results = []
+    for link in links:
+        # 1. Convert to direct link
+        conversion_result = drive_service.convert_to_direct_link(link)
+        if not conversion_result['success']:
+            results.append({'link': link, 'success': False, 'error': f"Drive link conversion failed: {conversion_result.get('error', 'Unknown error')}"})
+            continue
+        direct_link = conversion_result['direct_link']
+        # 2. Extract filename for Gemini
+        file_info = drive_service.get_file_info(link)
+        filename = file_info['name'] if file_info and 'name' in file_info else link.split('/')[-1]
+        # 3. Download video to local file (skip if testing)
+        import uuid
+        unique_filename = f"youtube_video_{uuid.uuid4().hex}.mp4"
+        local_video_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+        if not TESTING_BULK_UPLOAD:
+            download_success = drive_service.download_file_direct(link, local_video_path)
+            if not download_success:
+                results.append({'link': link, 'success': False, 'error': 'Failed to download video from Google Drive. Make sure the link is public and accessible.', 'filename': filename})
+                continue
+        # 4. Generate content with Gemini (skip if testing)
+        if TESTING_BULK_UPLOAD:
+            title = f'[TEST MODE] Title for {filename}'
+            description = f'[TEST MODE] Description for {filename}'
+            hashtags = ['#test', '#bulk', '#upload']
+        elif gemini_service:
+            gemini_content = gemini_service.generate_content(filename, platform='youtube')
+            if not gemini_content.get('success', True):
+                results.append({'link': link, 'success': False, 'error': f"Gemini error: {gemini_content.get('error', 'Unknown error')}", 'filename': filename})
+                try:
+                    if os.path.exists(local_video_path):
+                        os.remove(local_video_path)
+                except Exception:
+                    pass
+                continue
+            title = gemini_content.get('title', '')
+            description = gemini_content.get('description', '')
+            hashtags = gemini_content.get('hashtags', '').split()
+        else:
+            title = filename
+            description = filename
+            hashtags = []
+        # 5. Upload to YouTube (skip if testing)
+        if TESTING_BULK_UPLOAD:
+            success, message, response = True, '[TEST MODE] Upload skipped', None
+        else:
+            success, message, response = youtube_service.upload_video(
+                video_path=local_video_path,
+                title=title,
+                description=description,
+                tags=hashtags,
+                privacy_status='public',
+                channel_id=channel_id,
+                client_id=client_id
+            )
+        # 6. Clean up local file
+        try:
+            if not TESTING_BULK_UPLOAD and os.path.exists(local_video_path):
+                os.remove(local_video_path)
+        except Exception:
+            pass
+        results.append({'link': link, 'success': success, 'message': message, 'response': response, 'filename': filename})
+    return render_template('bulk_youtube_result.html', results=results, config=app.config)
+
+@app.route('/bulk-uploader', methods=['GET', 'POST'])
+def bulk_uploader():
+    """Unified bulk uploader for YouTube and Instagram."""
+    if request.method == 'GET':
+        clients = auth_manager.get_all_clients()
+        return render_template('bulk_uploader.html', clients=clients, config=app.config)
+
+    # POST: process bulk upload
+    service = request.form.get('service', '')
+    client_id = request.form.get('client_id', '')
+    channel_id = request.form.get('channel_id', '')
+    account_id = request.form.get('account_id', '')
+    links_raw = request.form.get('drive_links', '')
+    import re
+    links = [l.strip() for l in re.split(r'[\n,]+', links_raw) if l.strip()]
+    if service == 'youtube' and len(links) > 10:
+        return render_template('bulk_uploader.html', clients=auth_manager.get_all_clients(), config=app.config, error='You can only upload up to 10 videos at a time for YouTube.')
+    if service == 'instagram' and len(links) > 50:
+        return render_template('bulk_uploader.html', clients=auth_manager.get_all_clients(), config=app.config, error='You can only upload up to 50 videos at a time for Instagram.')
+    results = []
+    for link in links:
+        # 1. Convert to direct link
+        conversion_result = drive_service.convert_to_direct_link(link)
+        if not conversion_result['success']:
+            results.append({'link': link, 'success': False, 'error': f"Drive link conversion failed: {conversion_result.get('error', 'Unknown error')}"})
+            continue
+        direct_link = conversion_result['direct_link']
+        # 2. Extract filename for Gemini
+        file_info = drive_service.get_file_info(link)
+        filename = file_info['name'] if file_info and 'name' in file_info else link.split('/')[-1]
+        if service == 'youtube':
+            # 3. Download video to local file (skip if testing)
+            import uuid
+            unique_filename = f"youtube_video_{uuid.uuid4().hex}.mp4"
+            local_video_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+            if not TESTING_BULK_UPLOAD:
+                download_success = drive_service.download_file_direct(link, local_video_path)
+                if not download_success:
+                    results.append({'link': link, 'success': False, 'error': 'Failed to download video from Google Drive. Make sure the link is public and accessible.', 'filename': filename})
+                    continue
+            # 4. Generate content with Gemini (skip if testing)
+            if TESTING_BULK_UPLOAD:
+                title = f'[TEST MODE] Title for {filename}'
+                description = f'[TEST MODE] Description for {filename}'
+                hashtags = ['#test', '#bulk', '#upload']
+            elif gemini_service:
+                gemini_content = gemini_service.generate_content(filename, platform='youtube')
+                if not gemini_content.get('success', True):
+                    results.append({'link': link, 'success': False, 'error': f"Gemini error: {gemini_content.get('error', 'Unknown error')}", 'filename': filename})
+                    try:
+                        if os.path.exists(local_video_path):
+                            os.remove(local_video_path)
+                    except Exception:
+                        pass
+                    continue
+                title = gemini_content.get('title', '')
+                description = gemini_content.get('description', '')
+                hashtags = gemini_content.get('hashtags', '').split()
+            else:
+                title = filename
+                description = filename
+                hashtags = []
+            # 5. Upload to YouTube (skip if testing)
+            if TESTING_BULK_UPLOAD:
+                success, message, response = True, '[TEST MODE] Upload skipped', None
+            else:
+                success, message, response = youtube_service.upload_video(
+                    video_path=local_video_path,
+                    title=title,
+                    description=description,
+                    tags=hashtags,
+                    privacy_status='public',
+                    channel_id=channel_id,
+                    client_id=client_id
+                )
+            # 6. Clean up local file
+            try:
+                if not TESTING_BULK_UPLOAD and os.path.exists(local_video_path):
+                    os.remove(local_video_path)
+            except Exception:
+                pass
+            results.append({'link': link, 'success': success, 'message': message, 'response': response, 'filename': filename})
+        elif service == 'instagram':
+            # 3. Generate content with Gemini (skip if testing)
+            if TESTING_BULK_UPLOAD:
+                caption = f'[TEST MODE] Caption for {filename}'
+                hashtags = ['#test', '#bulk', '#upload']
+            elif gemini_service:
+                gemini_content = gemini_service.generate_content(filename, platform='instagram')
+                if not gemini_content.get('success', True):
+                    results.append({'link': link, 'success': False, 'error': f"Gemini error: {gemini_content.get('error', 'Unknown error')}", 'filename': filename})
+                    continue
+                caption = gemini_content.get('description', '')
+                hashtags = gemini_content.get('hashtags', '').split()
+            else:
+                caption = filename
+                hashtags = []
+            # 4. Upload to Instagram (skip if testing)
+            if TESTING_BULK_UPLOAD:
+                success, message, response = True, '[TEST MODE] Upload skipped', None
+            else:
+                success, message, response = instagram_service.upload_video(
+                    video_path=None,
+                    caption=caption,
+                    hashtags=hashtags,
+                    account_id=account_id,
+                    client_id=client_id,
+                    video_url=direct_link
+                )
+            results.append({'link': link, 'success': success, 'message': message, 'response': response, 'filename': filename})
+        else:
+            results.append({'link': link, 'success': False, 'error': 'Invalid service selected.', 'filename': filename})
+    return render_template('bulk_uploader_result.html', results=results, config=app.config, service=service)
 
 if __name__ == '__main__':
     logger.info("Starting YouTube Shorts Uploader...")

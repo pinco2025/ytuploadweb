@@ -13,13 +13,13 @@
                 <div class="card-body">
                     <div class="text-center mb-4">
                         {% if platform == 'youtube' %}
-                            <i class="fab fa-youtube fa-3x text-danger mb-3"></i>
+                            <i class="fab fa-youtube fa-3x text-danger mb-3" loading="lazy"></i>
                             <h4>Your video has been uploaded to YouTube!</h4>
                         {% elif platform == 'instagram' %}
-                            <i class="fab fa-instagram fa-3x text-warning mb-3"></i>
+                            <i class="fab fa-instagram fa-3x text-warning mb-3" loading="lazy"></i>
                             <h4>Your video has been uploaded to Instagram!</h4>
                         {% else %}
-                            <i class="fas fa-video fa-3x text-success mb-3"></i>
+                            <i class="fas fa-video fa-3x text-success mb-3" loading="lazy"></i>
                             <h4>Your video has been uploaded successfully!</h4>
                         {% endif %}
                         <p class="text-muted">Video uploaded using client: <strong>{{ client_name }}</strong></p>

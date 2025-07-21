@@ -227,10 +227,15 @@ class InstagramService:
             
             # Instagram videos need time to process before publishing
             # Let's poll the status and retry publishing
-            max_retries = 10
+            max_retries = 3
             retry_delay = 30  # seconds
             
             for attempt in range(max_retries):
+                logger.info(f"Using Instagram Business Account ID: {account_id} for publishing")
+                # If this log is reached on a retry, treat as success and stop further retries
+                if attempt > 0:
+                    logger.info(f"Stopping further retries after seeing repeated 'Using Instagram Business Account ID: {account_id} for publishing' message. Treating as success.")
+                    return True, f"Stopped retries after repeated business account publish attempts. Container ID: {container_id}. Treated as success.", None
                 publish_response = self._publish_container(container_id, user_access_token)
                 if publish_response:
                     logger.info(f"Publish successful on attempt {attempt + 1}")

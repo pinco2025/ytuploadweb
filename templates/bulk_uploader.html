@@ -1,0 +1,348 @@
+{% extends "base.html" %}
+{% block title %}Unified Bulk Uploader{% endblock %}
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header bg-gradient-primary text-white">
+                    <h2 class="text-center mb-0">
+                        <i class="fas fa-layer-group me-2"></i>Unified Bulk Uploader
+                    </h2>
+                    <p class="text-center mb-0 mt-2 opacity-75">
+                        Select the service, client, and channel/account. Paste up to 10 (YouTube) or 50 (Instagram) Google Drive links (comma or newline separated).
+                    </p>
+                </div>
+                <div class="card-body">
+                    {% if error %}
+                        <div class="alert alert-danger">{{ error }}</div>
+                    {% endif %}
+                    <form method="POST" id="bulkUploaderForm">
+                        <div class="mb-3">
+                            <label for="service" class="form-label"><i class="fas fa-cogs me-1"></i>Select Service
+                                <span tabindex="0" data-bs-toggle="tooltip" title="Choose the platform to upload to (YouTube or Instagram)">
+                                    <i class="fas fa-question-circle text-info"></i>
+                                </span>
+                            </label>
+                            <select class="form-select" id="service" name="service" required data-bs-toggle="tooltip" title="Choose the platform to upload to (YouTube or Instagram)">
+                                <option value="">-- Select Service --</option>
+                                <option value="youtube">YouTube</option>
+                                <option value="instagram">Instagram</option>
+                            </select>
+                            <div class="validation-error" id="service_error"></div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="client_id" class="form-label"><i class="fas fa-user me-1"></i>Select Client
+                                <span tabindex="0" data-bs-toggle="tooltip" title="Select the client account for uploading.">
+                                    <i class="fas fa-question-circle text-info"></i>
+                                </span>
+                            </label>
+                            <select class="form-select" id="client_id" name="client_id" required disabled data-bs-toggle="tooltip" title="Select the client account for uploading.">
+                                <option value="">-- Select Client --</option>
+                                {% for client in clients %}
+                                    <option value="{{ client.id }}" data-type="{{ client.type }}">{{ client.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="validation-error" id="client_id_error"></div>
+                        </div>
+                        <div class="mb-3" id="channelSection" style="display:none;">
+                            <label for="channel_id" class="form-label"><i class="fas fa-list me-1"></i>Select Channel
+                                <span tabindex="0" data-bs-toggle="tooltip" title="Select the YouTube channel for upload.">
+                                    <i class="fas fa-question-circle text-info"></i>
+                                </span>
+                            </label>
+                            <select class="form-select" id="channel_id" name="channel_id" required disabled data-bs-toggle="tooltip" title="Select the YouTube channel for upload.">
+                                <option value="">-- Select Channel --</option>
+                            </select>
+                            <div id="channelLoading" class="form-text text-info" style="display:none;">
+                                <i class="fas fa-spinner fa-spin me-1"></i>Loading channels...
+                            </div>
+                            <div id="channelError" class="form-text text-danger" style="display:none;"></div>
+                            <div class="validation-error" id="channel_id_error"></div>
+                        </div>
+                        <div class="mb-3" id="accountSection" style="display:none;">
+                            <label for="account_id" class="form-label"><i class="fas fa-user-tag me-1"></i>Select Instagram Account
+                                <span tabindex="0" data-bs-toggle="tooltip" title="Select the Instagram account for upload.">
+                                    <i class="fas fa-question-circle text-info"></i>
+                                </span>
+                            </label>
+                            <select class="form-select" id="account_id" name="account_id" required disabled data-bs-toggle="tooltip" title="Select the Instagram account for upload.">
+                                <option value="">-- Select Account --</option>
+                            </select>
+                            <div id="accountLoading" class="form-text text-info" style="display:none;">
+                                <i class="fas fa-spinner fa-spin me-1"></i>Loading accounts...
+                            </div>
+                            <div id="accountError" class="form-text text-danger" style="display:none;"></div>
+                            <div class="validation-error" id="account_id_error"></div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="drive_links" class="form-label">
+                                <i class="fas fa-link me-1"></i>Google Drive Links (comma or newline separated)
+                                <span tabindex="0" data-bs-toggle="tooltip" title="Paste up to 10 (YouTube) or 50 (Instagram) Google Drive links. You can also drag and drop a text file or links here to auto-fill.">
+                                    <i class="fas fa-question-circle text-info"></i>
+                                </span>
+                            </label>
+                            <div id="dragDropArea" class="border border-2 rounded p-3 mb-2 text-center bg-light" style="cursor:pointer; min-height: 60px; transition: background 0.2s;">
+                                <span class="text-muted">Drag & drop a text file or links here, or paste below</span>
+                            </div>
+                            <textarea class="form-control" id="drive_links" name="drive_links" rows="8" required placeholder="Paste your Google Drive links here..." data-bs-toggle="tooltip" title="Paste up to 10 (YouTube) or 50 (Instagram) Google Drive links, separated by commas or newlines."></textarea>
+                            <div class="validation-error" id="drive_links_error"></div>
+                        </div>
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg" id="bulkUploadBtn">
+                                <i class="fas fa-upload me-2"></i>Queue Bulk Upload
+                            </button>
+                        </div>
+                        <div id="bulkUploadProgress" class="mt-3" style="display: none;">
+                            <div class="progress">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+                            </div>
+                            <small class="text-muted mt-2 d-block">Submitting bulk upload...</small>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    const serviceSelect = document.getElementById('service');
+    const clientSelect = document.getElementById('client_id');
+    const channelSection = document.getElementById('channelSection');
+    const channelSelect = document.getElementById('channel_id');
+    const channelLoading = document.getElementById('channelLoading');
+    const channelError = document.getElementById('channelError');
+    const accountSection = document.getElementById('accountSection');
+    const accountSelect = document.getElementById('account_id');
+    const accountLoading = document.getElementById('accountLoading');
+    const accountError = document.getElementById('accountError');
+
+    serviceSelect.addEventListener('change', function() {
+        const service = this.value;
+        // Enable client select and filter options
+        clientSelect.disabled = false;
+        for (const opt of clientSelect.options) {
+            if (!opt.value) continue;
+            if (service === 'youtube' && opt.getAttribute('data-type') !== 'instagram') {
+                opt.style.display = '';
+            } else if (service === 'instagram' && opt.getAttribute('data-type') === 'instagram') {
+                opt.style.display = '';
+            } else {
+                opt.style.display = 'none';
+            }
+        }
+        clientSelect.value = '';
+        channelSection.style.display = 'none';
+        accountSection.style.display = 'none';
+    });
+
+    clientSelect.addEventListener('change', function() {
+        const service = serviceSelect.value;
+        const clientId = this.value;
+        if (!clientId) {
+            channelSection.style.display = 'none';
+            accountSection.style.display = 'none';
+            return;
+        }
+        if (service === 'youtube') {
+            channelSection.style.display = '';
+            accountSection.style.display = 'none';
+            channelSelect.innerHTML = '<option value="">-- Select Channel --</option>';
+            channelSelect.disabled = true;
+            channelError.style.display = 'none';
+            channelLoading.style.display = 'inline';
+            fetch('/api/channels/' + clientId)
+                .then(response => response.json())
+                .then(data => {
+                    channelLoading.style.display = 'none';
+                    if (data.success && data.channels.length > 0) {
+                        data.channels.forEach(function(channel) {
+                            var opt = document.createElement('option');
+                            opt.value = channel.id;
+                            opt.textContent = channel.title;
+                            channelSelect.appendChild(opt);
+                        });
+                        channelSelect.disabled = false;
+                    } else {
+                        channelError.textContent = data.error || 'No channels found for this client.';
+                        channelError.style.display = 'block';
+                    }
+                })
+                .catch(function(err) {
+                    channelLoading.style.display = 'none';
+                    channelError.textContent = 'Error loading channels.';
+                    channelError.style.display = 'block';
+                });
+        } else if (service === 'instagram') {
+            channelSection.style.display = 'none';
+            accountSection.style.display = '';
+            accountSelect.innerHTML = '<option value="">-- Select Account --</option>';
+            accountSelect.disabled = true;
+            accountError.style.display = 'none';
+            accountLoading.style.display = 'inline';
+            fetch('/api/instagram/accounts/' + clientId)
+                .then(response => response.json())
+                .then(data => {
+                    accountLoading.style.display = 'none';
+                    if (data.success && data.accounts.length > 0) {
+                        data.accounts.forEach(function(account) {
+                            var opt = document.createElement('option');
+                            opt.value = account.id;
+                            opt.textContent = account.username ? (account.username + (account.name ? ' (' + account.name + ')' : '')) : (account.name || account.id);
+                            accountSelect.appendChild(opt);
+                        });
+                        accountSelect.disabled = false;
+                    } else {
+                        accountError.textContent = data.error || 'No accounts found for this client.';
+                        accountError.style.display = 'block';
+                    }
+                })
+                .catch(function(err) {
+                    accountLoading.style.display = 'none';
+                    accountError.textContent = 'Error loading accounts.';
+                    accountError.style.display = 'block';
+                });
+        }
+    });
+
+    // Drag-and-drop for Google Drive links
+    const dragDropArea = document.getElementById('dragDropArea');
+    const driveLinksTextarea = document.getElementById('drive_links');
+    dragDropArea.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        dragDropArea.classList.add('bg-primary', 'text-white');
+    });
+    dragDropArea.addEventListener('dragleave', function(e) {
+        dragDropArea.classList.remove('bg-primary', 'text-white');
+    });
+    dragDropArea.addEventListener('drop', function(e) {
+        e.preventDefault();
+        dragDropArea.classList.remove('bg-primary', 'text-white');
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            const file = e.dataTransfer.files[0];
+            if (file.type.startsWith('text/')) {
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    driveLinksTextarea.value = evt.target.result;
+                };
+                reader.readAsText(file);
+            }
+        } else if (e.dataTransfer.getData('text')) {
+            driveLinksTextarea.value = e.dataTransfer.getData('text');
+        }
+    });
+    dragDropArea.addEventListener('click', function() {
+        driveLinksTextarea.focus();
+    });
+    // Inline validation for main fields
+    function validateService() {
+        const input = document.getElementById('service');
+        const errorDiv = document.getElementById('service_error');
+        if (!input.value) {
+            errorDiv.textContent = 'Service selection is required.';
+            input.classList.add('is-invalid');
+            showToast('Service selection is required.', 'error');
+            return false;
+        }
+        errorDiv.textContent = '';
+        input.classList.remove('is-invalid');
+        input.classList.add('is-valid');
+        return true;
+    }
+    function validateClient() {
+        const input = document.getElementById('client_id');
+        const errorDiv = document.getElementById('client_id_error');
+        if (!input.value) {
+            errorDiv.textContent = 'Client selection is required.';
+            input.classList.add('is-invalid');
+            showToast('Client selection is required.', 'error');
+            return false;
+        }
+        errorDiv.textContent = '';
+        input.classList.remove('is-invalid');
+        input.classList.add('is-valid');
+        return true;
+    }
+    function validateChannel() {
+        const input = document.getElementById('channel_id');
+        const errorDiv = document.getElementById('channel_id_error');
+        if (channelSection.style.display !== 'none' && !input.value) {
+            errorDiv.textContent = 'Channel selection is required.';
+            input.classList.add('is-invalid');
+            showToast('Channel selection is required.', 'error');
+            return false;
+        }
+        errorDiv.textContent = '';
+        input.classList.remove('is-invalid');
+        if (channelSection.style.display !== 'none') input.classList.add('is-valid');
+        return true;
+    }
+    function validateAccount() {
+        const input = document.getElementById('account_id');
+        const errorDiv = document.getElementById('account_id_error');
+        if (accountSection.style.display !== 'none' && !input.value) {
+            errorDiv.textContent = 'Account selection is required.';
+            input.classList.add('is-invalid');
+            showToast('Account selection is required.', 'error');
+            return false;
+        }
+        errorDiv.textContent = '';
+        input.classList.remove('is-invalid');
+        if (accountSection.style.display !== 'none') input.classList.add('is-valid');
+        return true;
+    }
+    function validateDriveLinks() {
+        const input = document.getElementById('drive_links');
+        const errorDiv = document.getElementById('drive_links_error');
+        const value = input.value.trim();
+        if (!value) {
+            errorDiv.textContent = 'Google Drive links are required.';
+            input.classList.add('is-invalid');
+            showToast('Google Drive links are required.', 'error');
+            return false;
+        }
+        // Basic validation: check for at least one valid Google Drive link
+        const links = value.split(/[\n,]+/).map(l => l.trim()).filter(l => l);
+        const validLinks = links.filter(l => /^https:\/\/drive\.google\.com\/file\/d\//.test(l));
+        if (validLinks.length === 0) {
+            errorDiv.textContent = 'Please enter at least one valid Google Drive file link.';
+            input.classList.add('is-invalid');
+            showToast('Please enter at least one valid Google Drive file link.', 'error');
+            return false;
+        }
+        errorDiv.textContent = '';
+        input.classList.remove('is-invalid');
+        input.classList.add('is-valid');
+        return true;
+    }
+    document.getElementById('service').addEventListener('change', validateService);
+    document.getElementById('client_id').addEventListener('change', validateClient);
+    document.getElementById('channel_id').addEventListener('change', validateChannel);
+    document.getElementById('account_id').addEventListener('change', validateAccount);
+    document.getElementById('drive_links').addEventListener('input', validateDriveLinks);
+    // Enable Bootstrap tooltips for all fields
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+      new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+
+    // Progress indicator for bulk upload
+    const bulkUploaderForm = document.getElementById('bulkUploaderForm');
+    const bulkUploadBtn = document.getElementById('bulkUploadBtn');
+    const bulkUploadProgress = document.getElementById('bulkUploadProgress');
+    if (bulkUploaderForm) {
+        bulkUploaderForm.addEventListener('submit', function(e) {
+            bulkUploadBtn.disabled = true;
+            bulkUploadProgress.style.display = 'block';
+        });
+    }
+    // Show toast on successful submission
+    if (bulkUploaderForm) {
+        bulkUploaderForm.addEventListener('submit', function(e) {
+            setTimeout(function() {
+                showToast('Bulk upload submitted successfully!', 'success');
+            }, 500); // Show after progress bar appears
+        });
+    }
+</script>
+{% endblock %} 

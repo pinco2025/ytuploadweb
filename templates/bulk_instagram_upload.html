@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Bulk Instagram Upload{% endblock %}
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <h2 class="text-center mb-0">
+                        <i class="fab fa-instagram me-2"></i>Bulk Instagram Upload
+                    </h2>
+                    <p class="text-center mb-0 mt-2 opacity-75">
+                        Paste multiple Google Drive links below. Captions and hashtags will be generated automatically using Gemini AI.
+                    </p>
+                </div>
+                <div class="card-body">
+                    <!-- Clear All Bulk Uploads Button -->
+                    <div class="mb-4 text-end">
+                        <button id="clearBulkUploadsBtn" class="btn btn-outline-danger">
+                            <i class="fas fa-trash me-1"></i>Clear All Bulk Uploads
+                        </button>
+                        <span id="clearBulkSpinner" class="ms-2" style="display:none;">
+                            <i class="fas fa-spinner fa-spin"></i>
+                        </span>
+                    </div>
+                    <div id="clearBulkMessage" class="mb-3"></div>
+                    <form method="POST" id="bulkInstagramForm">
+                        <div class="mb-3">
+                            <label for="client_id" class="form-label"><i class="fab fa-instagram me-1"></i>Select Instagram Client</label>
+                            <select class="form-select" id="client_id" name="client_id" required>
+                                <option value="">-- Select Client --</option>
+                                {% for client in clients %}
+                                    <option value="{{ client.id }}">{{ client.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="account_id" class="form-label"><i class="fas fa-user me-1"></i>Select Instagram Account</label>
+                            <select class="form-select" id="account_id" name="account_id" required disabled>
+                                <option value="">-- Select Account --</option>
+                            </select>
+                            <div id="accountLoading" class="form-text text-info" style="display:none;">
+                                <i class="fas fa-spinner fa-spin me-1"></i>Loading accounts...
+                            </div>
+                            <div id="accountError" class="form-text text-danger" style="display:none;"></div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="drive_links" class="form-label"><i class="fas fa-link me-1"></i>Google Drive Links</label>
+                            <textarea class="form-control" id="drive_links" name="drive_links" rows="8" required placeholder="Paste one Google Drive link per line..."></textarea>
+                        </div>
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-warning btn-lg">
+                                <i class="fas fa-upload me-2"></i>Queue Bulk Upload
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    document.getElementById('client_id').addEventListener('change', function() {
+        var clientId = this.value;
+        var accountSelect = document.getElementById('account_id');
+        var loading = document.getElementById('accountLoading');
+        var error = document.getElementById('accountError');
+        accountSelect.innerHTML = '<option value="">-- Select Account --</option>';
+        accountSelect.disabled = true;
+        error.style.display = 'none';
+        if (!clientId) return;
+        loading.style.display = 'inline';
+        fetch('/api/instagram/accounts/' + clientId)
+            .then(response => response.json())
+            .then(data => {
+                loading.style.display = 'none';
+                if (data.success && data.accounts.length > 0) {
+                    data.accounts.forEach(function(account) {
+                        var opt = document.createElement('option');
+                        opt.value = account.id;
+                        opt.textContent = account.username ? (account.username + (account.name ? ' (' + account.name + ')' : '')) : (account.name || account.id);
+                        accountSelect.appendChild(opt);
+                    });
+                    accountSelect.disabled = false;
+                } else {
+                    error.textContent = data.error || 'No accounts found for this client.';
+                    error.style.display = 'block';
+                }
+            })
+            .catch(function(err) {
+                loading.style.display = 'none';
+                error.textContent = 'Error loading accounts.';
+                error.style.display = 'block';
+            });
+    });
+
+    // Clear All Bulk Uploads Button Handler
+    document.getElementById('clearBulkUploadsBtn').addEventListener('click', function() {
+        var btn = this;
+        var spinner = document.getElementById('clearBulkSpinner');
+        var msgDiv = document.getElementById('clearBulkMessage');
+        btn.disabled = true;
+        spinner.style.display = 'inline-block';
+        msgDiv.innerHTML = '';
+        fetch('/clear-bulk-instagram-uploads', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            spinner.style.display = 'none';
+            btn.disabled = false;
+            if (data.success) {
+                msgDiv.innerHTML = '<div class="alert alert-success"><i class="fas fa-check-circle me-1"></i>' + data.message + '</div>';
+            } else {
+                msgDiv.innerHTML = '<div class="alert alert-danger"><i class="fas fa-exclamation-triangle me-1"></i>' + (data.error || 'Failed to clear uploads.') + '</div>';
+            }
+        })
+        .catch(function(err) {
+            spinner.style.display = 'none';
+            btn.disabled = false;
+            msgDiv.innerHTML = '<div class="alert alert-danger"><i class="fas fa-exclamation-triangle me-1"></i>Error: ' + err.message + '</div>';
+        });
+    });
+</script>
+{% endblock %} 

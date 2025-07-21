@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Bulk Instagram Upload Results{% endblock %}
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h2 class="text-center mb-0">
+                        <i class="fab fa-instagram me-2"></i>Bulk Instagram Upload Results
+                    </h2>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Google Drive Link</th>
+                                <th>Extracted Filename</th>
+                                <th>Extraction Method</th>
+                                <th>Status</th>
+                                <th>Message</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for result in results %}
+                            <tr class="{% if result.success %}table-success{% else %}table-danger{% endif %}">
+                                <td>{{ loop.index }}</td>
+                                <td style="word-break: break-all;">{{ result.link }}</td>
+                                <td style="word-break: break-all;">{{ result.filename or '-' }}</td>
+                                <td>{{ result.extraction_method or '-' }}</td>
+                                <td>
+                                    {% if result.success %}
+                                        <span class="badge bg-success">Success</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Failed</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {{ result.message or result.error }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    <div class="text-center mt-4">
+                        <a href="/bulk-instagram-upload" class="btn btn-outline-primary">
+                            <i class="fas fa-arrow-left me-1"></i>Back to Bulk Upload
+                        </a>
+                        <a href="/" class="btn btn-outline-secondary ms-2">
+                            <i class="fas fa-home me-1"></i>Home
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 
