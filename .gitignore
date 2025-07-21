@@ -158,3 +158,4 @@ discord_config.json
 # API keys and secrets
 *_config.json
 secrets.json
+service-account.json
