@@ -49,7 +49,7 @@
                             <textarea class="form-control" id="drive_links" name="drive_links" rows="8" required placeholder="Paste one Google Drive link per line..."></textarea>
                         </div>
                         <div class="d-grid gap-2">
-                            <button type="submit" class="btn btn-warning btn-lg">
+                            <button type="submit" class="btn btn-warning btn-lg" id="bulkInstaSubmitBtn">
                                 <i class="fas fa-upload me-2"></i>Queue Bulk Upload
                             </button>
                         </div>
@@ -121,6 +121,21 @@
             btn.disabled = false;
             msgDiv.innerHTML = '<div class="alert alert-danger"><i class="fas fa-exclamation-triangle me-1"></i>Error: ' + err.message + '</div>';
         });
+    });
+
+    // Disable submit button after first click and show spinner
+    document.getElementById('bulkInstagramForm').addEventListener('submit', function(e) {
+        var btn = document.getElementById('bulkInstaSubmitBtn');
+        if (btn.disabled) {
+            console.warn('Submit prevented: button already disabled');
+            e.preventDefault();
+            return false;
+        }
+        btn.disabled = true;
+        btn.classList.remove('btn-warning');
+        btn.classList.add('btn-secondary');
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Uploading...';
+        console.log('Bulk Instagram form submitted at', new Date().toISOString());
     });
 </script>
 {% endblock %} 

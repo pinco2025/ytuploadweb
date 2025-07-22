@@ -222,36 +222,34 @@ class InstagramService:
             
             logger.info(f"Container created successfully with ID: {container_id}")
             
-            # Step 2: Publish the container (with retry for processing)
-            logger.info(f"Publishing container {container_id}")
-            
-            # Instagram videos need time to process before publishing
-            # Let's poll the status and retry publishing
-            max_retries = 3
-            retry_delay = 30  # seconds
-            
-            for attempt in range(max_retries):
-                logger.info(f"Using Instagram Business Account ID: {account_id} for publishing")
-                # If this log is reached on a retry, treat as success and stop further retries
-                if attempt > 0:
-                    logger.info(f"Stopping further retries after seeing repeated 'Using Instagram Business Account ID: {account_id} for publishing' message. Treating as success.")
-                    return True, f"Stopped retries after repeated business account publish attempts. Container ID: {container_id}. Treated as success.", None
-                publish_response = self._publish_container(container_id, user_access_token)
-                if publish_response:
-                    logger.info(f"Publish successful on attempt {attempt + 1}")
-                    break
+            # Step 2: Wait for the container to finish processing
+            max_wait_minutes = 15
+            poll_interval = 30  # seconds
+            logger.info(f"Waiting for container {container_id} to finish processing")
+
+            waited = 0
+            ready = False
+            while waited < max_wait_minutes * 60:
+                status_ok, _, status_data = self.get_upload_status(container_id, client_id)
+                if status_ok and status_data:
+                    status_code = status_data.get('status_code') or status_data.get('status')
+                    logger.debug(f"Container {container_id} status: {status_code}")
+                    if status_code in ("FINISHED", "READY", "FINISHED_SUCCESS"):  # accepting common variants
+                        ready = True
+                        break
                 else:
-                    if attempt < max_retries - 1:
-                        logger.info(f"Publish failed, video still processing. Retrying in {retry_delay} seconds... (attempt {attempt + 1}/{max_retries})")
-                        time.sleep(retry_delay)
-                    else:
-                        logger.error("Publish failed after all retries")
-                        return False, f"Failed to publish video after {max_retries} attempts. Container ID: {container_id}. Video may still be processing.", None
-            
+                    logger.warning(f"Could not get status for container {container_id}. Will retry.")
+                time.sleep(poll_interval)
+                waited += poll_interval
+            if not ready:
+                return False, f"Video not ready after waiting {max_wait_minutes} minutes.", None
+
+            # Step 3: Publish the container
+            logger.info(f"Publishing container {container_id} after processing complete")
+            publish_response = self._publish_container(container_id, user_access_token)
             if not publish_response:
-                logger.error("Publish failed - no response")
                 return False, "Failed to publish video", None
-            
+
             logger.info(f"Publish response: {publish_response}")
             
             # Step 3: Check upload status
@@ -318,12 +316,12 @@ class InstagramService:
             # Remove None values
             data = {k: v for k, v in data.items() if v is not None}
             
-            logger.info(f"Making request to: {url}")
-            logger.info(f"Request data: {data}")
+            logger.debug(f"Making request to: {url}")
+            logger.debug(f"Request data: {data}")
             
             response = requests.post(url, data=data)
-            logger.info(f"Response status: {response.status_code}")
-            logger.info(f"Response text: {response.text}")
+            logger.debug(f"Response status: {response.status_code}")
+            logger.debug(f"Response text: {response.text[:300]}")
             
             if response.status_code != 200:
                 logger.error(f"Failed to create container: {response.text}")
@@ -383,7 +381,7 @@ class InstagramService:
                 logger.error("No Instagram Business Account found")
                 return None
             
-            logger.info(f"Using Instagram Business Account ID: {instagram_account_id} for publishing")
+            logger.debug(f"Using Instagram Business Account ID: {instagram_account_id} for publishing")
             
             # Now publish using the Instagram Business Account ID
             url = f"{self.base_url}/{instagram_account_id}/media_publish"
@@ -396,8 +394,14 @@ class InstagramService:
             if response.status_code != 200:
                 logger.error(f"Failed to publish container: {response.text}")
                 return None
-            
-            return response.json()
+
+            # The publish endpoint may return an empty body with 200.
+            try:
+                publish_json = response.json()
+            except ValueError:
+                publish_json = {"status": "ok"}
+
+            return publish_json
             
         except Exception as e:
             logger.error(f"Error publishing container: {e}")

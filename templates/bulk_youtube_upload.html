@@ -96,6 +96,9 @@
             return false;
         }
         btn.disabled = true;
+        // swap color to greyed secondary
+        btn.classList.remove('btn-danger');
+        btn.classList.add('btn-secondary');
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Uploading...';
         console.log('Bulk YouTube form submitted at', new Date().toISOString());
     });

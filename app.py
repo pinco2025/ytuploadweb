@@ -24,6 +24,9 @@ import atexit
 import shutil
 import re
 
+# In-memory store for bulk upload results (cleared on app restart)
+BULK_RESULTS = {}
+
 # Add a flag for testing environment
 TESTING_BULK_UPLOAD = os.environ.get('TESTING_BULK_UPLOAD', 'false').lower() == 'true'
 
@@ -50,15 +53,20 @@ atexit.register(clear_uploads_dir)
 # Allow OAuth2 to work with HTTP for localhost development
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('app.log'),
-        logging.StreamHandler()
-    ]
-)
+# Refined logging: verbose INFO to file, concise WARNING+ to console
+console_level = os.environ.get('CONSOLE_LOG_LEVEL', 'WARNING').upper()
+file_level = os.environ.get('FILE_LOG_LEVEL', 'INFO').upper()
+
+console_handler = logging.StreamHandler()
+console_handler.setLevel(console_level)
+console_handler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+
+file_handler = logging.FileHandler('app.log')
+file_handler.setLevel(file_level)
+file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+
+logging.basicConfig(level=min(console_level, file_level, key=lambda x: getattr(logging, x)),
+                    handlers=[file_handler, console_handler])
 logger = logging.getLogger(__name__)
 
 # Ensure upload directory exists
@@ -1364,6 +1372,8 @@ def bulk_instagram_upload():
         return render_template('bulk_instagram_upload.html', clients=clients, config=app.config)
 
     # POST: process bulk upload
+    request_id = uuid.uuid4().hex[:8]
+    logger.info(f"[INSTAGRAM BULK] Request {request_id} started")
     links_raw = request.form.get('drive_links', '')
     client_id = request.form.get('client_id', '')
     account_id = request.form.get('account_id', '')
@@ -1405,7 +1415,7 @@ def bulk_instagram_upload():
                 results.append({'link': link, 'success': False, 'error': f"Gemini error: {gemini_content.get('error', 'Unknown error')}", 'filename': filename, 'extraction_method': extraction_method})
                 continue
             caption = gemini_content.get('description', '')
-            hashtags = gemini_content.get('hashtags', '').split()
+            hashtags = [h.lstrip('#') for h in gemini_content.get('hashtags', '').split()]
         else:
             caption = filename
             hashtags = []
@@ -1422,8 +1432,9 @@ def bulk_instagram_upload():
                 video_url=direct_link
             )
         results.append({'link': link, 'success': success, 'message': message, 'response': response, 'filename': filename, 'extraction_method': extraction_method})
-    # Render results page
-    return render_template('bulk_instagram_result.html', results=results, config=app.config)
+    # Store results and redirect (POST-Redirect-GET)
+    BULK_RESULTS[request_id] = results
+    return redirect(url_for('bulk_instagram_result', request_id=request_id))
 
 @app.route('/clear-bulk-instagram-uploads', methods=['POST'])
 def clear_bulk_instagram_uploads():
@@ -1443,6 +1454,8 @@ def bulk_youtube_upload():
         return render_template('bulk_youtube_upload.html', clients=clients, config=app.config)
 
     # POST: process bulk upload
+    request_id = uuid.uuid4().hex[:8]
+    logger.info(f"[YOUTUBE BULK] Request {request_id} started")
     links_raw = request.form.get('drive_links', '')
     client_id = request.form.get('client_id', '')
     channel_id = request.form.get('channel_id', '')
@@ -1516,6 +1529,26 @@ def bulk_youtube_upload():
         except Exception:
             pass
         results.append({'link': link, 'success': success, 'message': message, 'response': response, 'filename': filename})
+    BULK_RESULTS[request_id] = results
+    return redirect(url_for('bulk_youtube_result', request_id=request_id))
+
+# Result routes for POST-Redirect-GET
+
+@app.route('/bulk-instagram-result/<request_id>')
+def bulk_instagram_result(request_id):
+    results = BULK_RESULTS.pop(request_id, None)
+    if results is None:
+        flash('Results expired or not found.', 'error')
+        return redirect(url_for('bulk_instagram_upload'))
+    return render_template('bulk_instagram_result.html', results=results, config=app.config)
+
+
+@app.route('/bulk-youtube-result/<request_id>')
+def bulk_youtube_result(request_id):
+    results = BULK_RESULTS.pop(request_id, None)
+    if results is None:
+        flash('Results expired or not found.', 'error')
+        return redirect(url_for('bulk_youtube_upload'))
     return render_template('bulk_youtube_result.html', results=results, config=app.config)
 
 @app.route('/bulk-uploader', methods=['GET', 'POST'])
@@ -1616,7 +1649,7 @@ def bulk_uploader():
                     results.append({'link': link, 'success': False, 'error': f"Gemini error: {gemini_content.get('error', 'Unknown error')}", 'filename': filename})
                     continue
                 caption = gemini_content.get('description', '')
-                hashtags = gemini_content.get('hashtags', '').split()
+                hashtags = [h.lstrip('#') for h in gemini_content.get('hashtags', '').split()]
             else:
                 caption = filename
                 hashtags = []
