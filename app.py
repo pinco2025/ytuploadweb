@@ -53,20 +53,18 @@ atexit.register(clear_uploads_dir)
 # Allow OAuth2 to work with HTTP for localhost development
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
-# Refined logging: verbose INFO to file, concise WARNING+ to console
-console_level = os.environ.get('CONSOLE_LOG_LEVEL', 'WARNING').upper()
-file_level = os.environ.get('FILE_LOG_LEVEL', 'INFO').upper()
+# Console now shows full logs (INFO by default). Use env CONSOLE_LOG_LEVEL to override.
+console_level = os.environ.get('CONSOLE_LOG_LEVEL', 'INFO').upper()
 
 console_handler = logging.StreamHandler()
 console_handler.setLevel(console_level)
-console_handler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+console_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
 
 file_handler = logging.FileHandler('app.log')
-file_handler.setLevel(file_level)
+file_handler.setLevel(os.environ.get('FILE_LOG_LEVEL', 'INFO').upper())
 file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
 
-logging.basicConfig(level=min(console_level, file_level, key=lambda x: getattr(logging, x)),
-                    handlers=[file_handler, console_handler])
+logging.basicConfig(level=getattr(logging, console_level), handlers=[file_handler, console_handler])
 logger = logging.getLogger(__name__)
 
 # Ensure upload directory exists
@@ -1559,6 +1557,8 @@ def bulk_uploader():
         return render_template('bulk_uploader.html', clients=clients, config=app.config)
 
     # POST: process bulk upload
+    request_id = uuid.uuid4().hex[:8]
+    logger.info(f"[UNIFIED BULK] Request {request_id} started")
     service = request.form.get('service', '')
     client_id = request.form.get('client_id', '')
     channel_id = request.form.get('channel_id', '')
@@ -1668,6 +1668,16 @@ def bulk_uploader():
             results.append({'link': link, 'success': success, 'message': message, 'response': response, 'filename': filename})
         else:
             results.append({'link': link, 'success': False, 'error': 'Invalid service selected.', 'filename': filename})
+    BULK_RESULTS[request_id] = results
+    return redirect(url_for('bulk_uploader_result', request_id=request_id, service=service))
+
+@app.route('/bulk-uploader-result/<request_id>')
+def bulk_uploader_result(request_id):
+    service = request.args.get('service','')
+    results = BULK_RESULTS.pop(request_id, None)
+    if results is None:
+        flash('Results expired or not found.', 'error')
+        return redirect(url_for('bulk_uploader'))
     return render_template('bulk_uploader_result.html', results=results, config=app.config, service=service)
 
 if __name__ == '__main__':

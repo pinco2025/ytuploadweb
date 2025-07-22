@@ -333,6 +333,8 @@
     if (bulkUploaderForm) {
         bulkUploaderForm.addEventListener('submit', function(e) {
             bulkUploadBtn.disabled = true;
+            bulkUploadBtn.classList.remove('btn-primary');
+            bulkUploadBtn.classList.add('btn-secondary');
             bulkUploadProgress.style.display = 'block';
         });
     }
