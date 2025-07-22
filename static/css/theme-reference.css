@@ -1,0 +1,22 @@
+/*
+  Theme Reference: Web-Api-Sys UI Theme
+  Use these CSS variables to match the main app's color palette and style in other projects.
+*/
+
+:root {
+  --primary-color: #7c3aed;
+  --primary-dark: #5b21b6;
+  --secondary-color: #a855f7;
+  --accent-color: #c084fc;
+  --background-color: #0f0f23;
+  --surface-color: #1a1a2e;
+  --card-color: #16213e;
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --border-color: #374151;
+  --success-color: #10b981;
+  --error-color: #ef4444;
+  --warning-color: #f59e0b;
+  --info-color: #06b6d4;
+} 

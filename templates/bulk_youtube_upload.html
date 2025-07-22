@@ -42,7 +42,7 @@
                             <textarea class="form-control" id="drive_links" name="drive_links" rows="8" required placeholder="Paste up to 10 Google Drive links, one per line..."></textarea>
                         </div>
                         <div class="d-grid gap-2">
-                            <button type="submit" class="btn btn-danger btn-lg">
+                            <button type="submit" class="btn btn-danger btn-lg" id="bulkSubmitBtn">
                                 <i class="fas fa-upload me-2"></i>Queue Bulk Upload
                             </button>
                         </div>
@@ -85,6 +85,19 @@
                 error.textContent = 'Error loading channels.';
                 error.style.display = 'block';
             });
+    });
+
+    // Disable submit button after first click and log submit event
+    document.getElementById('bulkYouTubeForm').addEventListener('submit', function(e) {
+        var btn = document.getElementById('bulkSubmitBtn');
+        if (btn.disabled) {
+            console.warn('Submit prevented: button already disabled');
+            e.preventDefault();
+            return false;
+        }
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Uploading...';
+        console.log('Bulk YouTube form submitted at', new Date().toISOString());
     });
 </script>
 {% endblock %} 
