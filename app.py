@@ -1472,7 +1472,6 @@ def bulk_youtube_upload():
         file_info = drive_service.get_file_info(link)
         filename = file_info['name'] if file_info and 'name' in file_info else link.split('/')[-1]
         # 3. Download video to local file (skip if testing)
-        import uuid
         unique_filename = f"youtube_video_{uuid.uuid4().hex}.mp4"
         local_video_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
         if not TESTING_BULK_UPLOAD:
@@ -1583,7 +1582,6 @@ def bulk_uploader():
         filename = file_info['name'] if file_info and 'name' in file_info else link.split('/')[-1]
         if service == 'youtube':
             # 3. Download video to local file (skip if testing)
-            import uuid
             unique_filename = f"youtube_video_{uuid.uuid4().hex}.mp4"
             local_video_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
             if not TESTING_BULK_UPLOAD:
