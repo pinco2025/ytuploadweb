@@ -22,6 +22,12 @@ class InstagramService:
     def _get_access_token(self, client_id: str) -> Optional[str]:
         """Get Instagram access token for a specific client."""
         try:
+            # simple in-process cache
+            if not hasattr(self, "_token_cache"):
+                self._token_cache = {}
+            if client_id in self._token_cache:
+                return self._token_cache[client_id]
+            
             # Switch to the specified client
             success, message = self.auth_manager.switch_client(client_id)
             if not success:
@@ -33,7 +39,9 @@ class InstagramService:
                 import json
                 with open(token_path, 'r') as f:
                     token_data = json.load(f)
-                    return token_data.get('access_token')
+                    token = token_data.get('access_token')
+                    self._token_cache[client_id] = token
+                    return token
             
             return None
             
@@ -229,12 +237,17 @@ class InstagramService:
 
             waited = 0
             ready = False
+            last_status = None
             while waited < max_wait_minutes * 60:
                 status_ok, _, status_data = self.get_upload_status(container_id, client_id)
                 if status_ok and status_data:
                     status_code = status_data.get('status_code') or status_data.get('status')
-                    logger.debug(f"Container {container_id} status: {status_code}")
-                    if status_code in ("FINISHED", "READY", "FINISHED_SUCCESS"):  # accepting common variants
+                    if status_code != last_status:
+                        logger.info(f"Container {container_id} status: {status_code}")
+                        last_status = status_code
+                    elif waited % 120 == 0:  # log every 2 min even if unchanged
+                        logger.debug(f"Container {container_id} status still {status_code}")
+                    if status_code in ("FINISHED", "READY", "FINISHED_SUCCESS"):
                         ready = True
                         break
                 else:

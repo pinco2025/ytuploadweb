@@ -330,14 +330,14 @@
     const bulkUploaderForm = document.getElementById('bulkUploaderForm');
     const bulkUploadBtn = document.getElementById('bulkUploadBtn');
     const bulkUploadProgress = document.getElementById('bulkUploadProgress');
-    if (bulkUploaderForm) {
-        bulkUploaderForm.addEventListener('submit', function(e) {
-            bulkUploadBtn.disabled = true;
-            bulkUploadBtn.classList.remove('btn-primary');
-            bulkUploadBtn.classList.add('btn-secondary');
-            bulkUploadProgress.style.display = 'block';
-        });
-    }
+    initBulkForm({
+        formId: 'bulkUploaderForm',
+        buttonId: 'bulkUploadBtn',
+        enabledClass: 'btn-primary',
+        disabledClass: 'btn-secondary',
+        spinnerHtml: '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Uploading...'
+    });
+    bulkUploaderForm.addEventListener('submit', function(){bulkUploadProgress.style.display='block'});
     // Show toast on successful submission
     if (bulkUploaderForm) {
         bulkUploaderForm.addEventListener('submit', function(e) {

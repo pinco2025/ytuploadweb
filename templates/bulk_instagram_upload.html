@@ -123,19 +123,12 @@
         });
     });
 
-    // Disable submit button after first click and show spinner
-    document.getElementById('bulkInstagramForm').addEventListener('submit', function(e) {
-        var btn = document.getElementById('bulkInstaSubmitBtn');
-        if (btn.disabled) {
-            console.warn('Submit prevented: button already disabled');
-            e.preventDefault();
-            return false;
-        }
-        btn.disabled = true;
-        btn.classList.remove('btn-warning');
-        btn.classList.add('btn-secondary');
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Uploading...';
-        console.log('Bulk Instagram form submitted at', new Date().toISOString());
+    initBulkForm({
+        formId: 'bulkInstagramForm',
+        buttonId: 'bulkInstaSubmitBtn',
+        enabledClass: 'btn-warning',
+        disabledClass: 'btn-secondary',
+        spinnerHtml: '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Uploading...'
     });
 </script>
 {% endblock %} 

@@ -184,6 +184,11 @@ class AuthManager:
     def switch_client(self, client_id: str) -> Tuple[bool, str]:
         """Switch the active client to the given client_id. Returns (success, message)."""
         try:
+            # If already on requested client, skip
+            if self.active_client_id == client_id:
+                logger.debug(f"Already on client {client_id}, no switch needed")
+                return True, "Already on requested client"
+
             success, message = self.authenticate_client(client_id)
             if success:
                 self.active_client_id = client_id

@@ -38,6 +38,11 @@
                                 </td>
                                 <td>
                                     {{ result.message or result.error }}
+                                    {% if result.response %}
+                                    <details class="mt-1"><summary class="small">details</summary>
+                                        <pre style="white-space:pre-wrap;max-width:400px">{{ result.response|tojson(indent=2) }}</pre>
+                                    </details>
+                                    {% endif %}
                                 </td>
                             </tr>
                             {% endfor %}

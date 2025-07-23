@@ -27,8 +27,8 @@ import re
 # In-memory store for bulk upload results (cleared on app restart)
 BULK_RESULTS = {}
 
-# Add a flag for testing environment
-TESTING_BULK_UPLOAD = os.environ.get('TESTING_BULK_UPLOAD', 'false').lower() == 'true'
+# Testing mode permanently disabled in production
+TESTING_BULK_UPLOAD = False  # formerly driven by env var
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -732,103 +732,6 @@ def health_check():
             "error": str(e)
         }), 500
 
-@app.route('/test-gemini')
-def test_gemini():
-    """Test endpoint for Gemini service debugging."""
-    try:
-        if not GEMINI_AVAILABLE:
-            return jsonify({
-                "success": False,
-                "error": "Gemini service not available"
-            }), 400
-        
-        # Test connection first
-        connection_test = gemini_service.test_connection()
-        
-        # Test with a simple filename
-        test_filename = "test_video.mp4"
-        test_platform = "youtube"
-        
-        logger.info(f"Testing Gemini with filename: {test_filename}, platform: {test_platform}")
-        
-        content = gemini_service.generate_content(test_filename, test_platform)
-        
-        return jsonify({
-            "success": True,
-            "connection_test": connection_test,
-            "content": content,
-            "filename": test_filename,
-            "platform": test_platform
-        })
-        
-    except Exception as e:
-        logger.error(f"Gemini test failed: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "error_type": type(e).__name__
-        }), 500
-
-@app.route('/test-drive-extraction')
-def test_drive_extraction():
-    """Test endpoint for Google Drive filename extraction."""
-    try:
-        # Get a test drive link from query parameter
-        test_link = request.args.get('link', '')
-        
-        if not test_link:
-            return jsonify({
-                "success": False,
-                "error": "Please provide a drive link as 'link' parameter"
-            }), 400
-        
-        logger.info(f"Testing drive link extraction: {test_link}")
-        
-        # Check if service account is available
-        service_account_available = drive_service.is_service_account_available()
-        
-        # Test file ID extraction
-        try:
-            file_id = drive_service.extract_file_id(test_link)
-        except Exception as e:
-            return jsonify({
-                "success": False,
-                "error": f"Failed to extract file ID: {str(e)}"
-            }), 400
-        
-        # Test file info extraction
-        file_info = drive_service.get_file_info(test_link)
-        
-        # Determine extraction quality
-        extraction_method = file_info.get('extracted_with', 'unknown') if file_info else 'failed'
-        if extraction_method == 'service_account':
-            extraction_quality = "excellent"
-        elif extraction_method == 'url_parsing':
-            extraction_quality = "good"
-        elif extraction_method == 'fallback':
-            extraction_quality = "generic"
-        else:
-            extraction_quality = "failed"
-        
-        return jsonify({
-            "success": True,
-            "drive_link": test_link,
-            "file_id": file_id,
-            "file_info": file_info,
-            "service_account_available": service_account_available,
-            "extraction_method": extraction_method,
-            "extraction_quality": extraction_quality,
-            "recommendation": "Provide service account credentials for better filename extraction" if not service_account_available else "Service account credentials are working properly"
-        })
-        
-    except Exception as e:
-        logger.error(f"Drive extraction test failed: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e),
-            "error_type": type(e).__name__
-        }), 500
-
 # Instagram uploader routes
 if app.config['ENABLE_INSTAGRAM_UPLOAD']:
     @app.route('/instagram', methods=['GET', 'POST'])
@@ -1458,6 +1361,12 @@ def bulk_youtube_upload():
     client_id = request.form.get('client_id', '')
     channel_id = request.form.get('channel_id', '')
     links = [l.strip() for l in re.split(r'[\n,]+', links_raw) if l.strip()]
+    # Early quota check
+    quota_status = youtube_service.get_quota_status(client_id)
+    remaining = quota_status.get('remaining_quota', 0)
+    total_cost = len(links)*1600
+    if remaining < total_cost:
+        return render_template('bulk_youtube_upload.html', clients=[c for c in auth_manager.get_all_clients() if c.get('type') != 'instagram'], config=app.config, error=f"Insufficient quota. Needed {total_cost}, remaining {remaining}.")
     if len(links) > 10:
         return render_template('bulk_youtube_upload.html', clients=[c for c in auth_manager.get_all_clients() if c.get('type') != 'instagram'], config=app.config, error='You can only upload up to 10 videos at a time.')
     results = []
@@ -1567,6 +1476,13 @@ def bulk_uploader():
     links = [l.strip() for l in re.split(r'[\n,]+', links_raw) if l.strip()]
     if service == 'youtube' and len(links) > 10:
         return render_template('bulk_uploader.html', clients=auth_manager.get_all_clients(), config=app.config, error='You can only upload up to 10 videos at a time for YouTube.')
+    # Early quota check for youtube
+    if service == 'youtube':
+        quota_status = youtube_service.get_quota_status(client_id)
+        remaining = quota_status.get('remaining_quota',0)
+        total_cost = len(links)*1600
+        if remaining < total_cost:
+            return render_template('bulk_uploader.html', clients=auth_manager.get_all_clients(), config=app.config, error=f"Insufficient quota. Needed {total_cost}, remaining {remaining}.")
     if service == 'instagram' and len(links) > 50:
         return render_template('bulk_uploader.html', clients=auth_manager.get_all_clients(), config=app.config, error='You can only upload up to 50 videos at a time for Instagram.')
     results = []
