@@ -1128,7 +1128,8 @@ def auth_redirect(client_id):
         'scope': ' '.join(scopes),
         'access_type': 'offline',
         'prompt': 'consent',
-        'include_granted_scopes': 'true'
+        'include_granted_scopes': 'true',
+        'state': client_id  # pass through so callback knows which client
     }
     auth_url = f"{base_url}?{urllib.parse.urlencode(params)}"
     
@@ -1183,20 +1184,18 @@ def oauth2callback():
         if not auth_code:
             logger.error("No authorization code received")
             flash('No authorization code received from Google', 'error')
-            return redirect(url_for('index'))
+            return redirect('/')
         
-        # For now, we need to determine which client this is for
-        # Since we don't have state parameter tracking, we'll need to handle this differently
-        # Let's create a simple token exchange for the first client
-        
-        # Get the first client (you can improve this by adding state tracking)
-        clients = auth_manager.get_all_clients()
-        if not clients:
-            flash('No clients configured', 'error')
-            return redirect(url_for('index'))
-        
-        client = clients[0]  # Use first client for now
-        client_id = client['id']
+        # Determine which client initiated the flow via state param
+        if not state:
+            flash('Missing state parameter in callback', 'error')
+            return redirect('/')
+
+        client = auth_manager.get_client_by_id(state)
+        if not client:
+            flash(f'Unknown client id {state} in OAuth callback', 'error')
+            return redirect('/')
+        client_id = state
         
         logger.info(f"Processing OAuth callback for client: {client_id}")
         
@@ -1218,7 +1217,7 @@ def oauth2callback():
         if response.status_code != 200:
             logger.error(f"Token exchange failed: {response.status_code} - {response.text}")
             flash(f'Token exchange failed: {response.text}', 'error')
-            return redirect(url_for('index'))
+            return redirect('/')
         
         token_response = response.json()
         
