@@ -20,6 +20,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 import pickle
 from google_drive_service import GoogleDriveService
 from gemini_service import GeminiService
+from discord_bulk_service import discord_bulk_service
 import atexit
 import shutil
 import re
@@ -85,6 +86,16 @@ except Exception as e:
     logger.warning(f"Gemini service not available: {e}")
     gemini_service = None
     GEMINI_AVAILABLE = False
+
+# Register Flask shutdown handler
+@atexit.register
+def cleanup_on_flask_shutdown():
+    """Clean up Discord bulk jobs when Flask app shuts down."""
+    try:
+        logger.info("Flask app shutting down, cleaning up Discord bulk jobs...")
+        discord_bulk_service._cleanup_on_exit()
+    except Exception as e:
+        logger.error(f"Error during Flask shutdown cleanup: {e}")
 
 # --- Flask Application for YouTube Shorts Uploader and n8n Integration ---
 #
@@ -199,6 +210,160 @@ def load_n8n_config():
     except Exception as e:
         print(f'Error loading n8n_config.json: {e}')
         return {}
+
+# Discord Bulk Job routes
+if app.config['ENABLE_DISCORD_JOB']:
+    @app.route('/discord-bulk-job', methods=['GET', 'POST'])
+    def discord_bulk_job():
+        """Handle Discord bulk job submission with JSON file upload."""
+        if request.method == 'GET':
+            return render_template('discord_bulk_job.html', config=app.config)
+        
+        # POST: handle bulk job submission
+        try:
+            # Get form data
+            json_file = request.files.get('json_file')
+            webhook_type = request.form.get('webhook_type', '').strip()
+            webhook_url = request.form.get('webhook_url', '').strip()
+            interval_minutes = int(request.form.get('interval_minutes', 5))
+            
+            # Validate required fields
+            if not json_file:
+                return jsonify({'success': False, 'message': 'Please upload a JSON file.'}), 400
+            
+            if not webhook_type:
+                return jsonify({'success': False, 'message': 'Please select a webhook type.'}), 400
+            
+            # Handle webhook URL based on type
+            if webhook_type in ['submit_job', 'nocap_job']:
+                # Get webhook URL from n8n config
+                n8n_config = load_n8n_config()
+                webhook_urls = n8n_config.get('webhook_urls', {})
+                webhook_url = webhook_urls.get(webhook_type)
+                
+                if not webhook_url:
+                    return jsonify({'success': False, 'message': f'No webhook URL configured for {webhook_type.replace("_", " ")}.'}), 400
+            elif webhook_type == 'custom':
+                # Validate custom webhook URL
+                if not webhook_url:
+                    return jsonify({'success': False, 'message': 'Please provide a webhook URL.'}), 400
+                
+                if not webhook_url.startswith('https://discord.com/api/webhooks/'):
+                    return jsonify({'success': False, 'message': 'Invalid Discord webhook URL.'}), 400
+            else:
+                return jsonify({'success': False, 'message': 'Invalid webhook type.'}), 400
+                
+            # Read and parse JSON file
+            try:
+                json_content = json_file.read().decode('utf-8')
+                json_data = json.loads(json_content)
+            except UnicodeDecodeError:
+                return jsonify({'success': False, 'message': 'Invalid file encoding. Please use UTF-8.'}), 400
+            except json.JSONDecodeError as e:
+                return jsonify({'success': False, 'message': f'Invalid JSON format: {str(e)}'}), 400
+            
+            # Validate JSON structure
+            if not isinstance(json_data, list):
+                return jsonify({'success': False, 'message': 'JSON file must contain an array of objects.'}), 400
+            
+            if len(json_data) == 0:
+                return jsonify({'success': False, 'message': 'JSON file must contain at least one item.'}), 400
+            
+            # Validate each item
+            for i, item in enumerate(json_data):
+                if not isinstance(item, dict):
+                    return jsonify({'success': False, 'message': f'Item {i+1} is not a valid object.'}), 400
+                
+                if 'name' not in item or 'message_link' not in item:
+                    return jsonify({'success': False, 'message': f'Item {i+1} missing required "name" or "message_link" field.'}), 400
+                
+                if not item['name'] or not item['message_link']:
+                    return jsonify({'success': False, 'message': f'Item {i+1} has empty name or message_link.'}), 400
+                
+                # Validate Discord message link format
+                message_link = item['message_link'].strip()
+                if 'discordapp.com' in message_link:
+                    message_link = message_link.replace('discordapp.com', 'discord.com')
+                if message_link.startswith('discord://'):
+                    message_link = message_link.replace('discord://discord', 'https://discord.com')
+                    message_link = message_link.replace('discord://', 'https://discord.com/')
+                
+                # Check if it's a valid Discord message link
+                if not message_link.startswith('https://discord.com/channels/'):
+                    return jsonify({'success': False, 'message': f'Item {i+1} has invalid Discord message link format.'}), 400
+                
+                # Update the message_link with cleaned format
+                item['message_link'] = message_link
+            
+            # Create bulk job
+            success, message, job_id = discord_bulk_service.create_bulk_job(
+                json_data=json_data,
+                webhook_url=webhook_url,
+                interval_minutes=interval_minutes,
+                webhook_type=webhook_type
+            )
+            
+            if success:
+                return jsonify({
+                    'success': True,
+                    'message': message,
+                    'job_id': job_id,
+                    'total_items': len(json_data)
+                })
+            else:
+                return jsonify({'success': False, 'message': message}), 400
+                
+        except Exception as e:
+            logger.error(f"Error in discord bulk job: {e}")
+            return jsonify({'success': False, 'message': f'Error processing bulk job: {str(e)}'}), 500
+    
+    @app.route('/api/discord-bulk-job-status/<job_id>')
+    def discord_bulk_job_status(job_id):
+        """Get the status of a Discord bulk job."""
+        try:
+            job_data = discord_bulk_service.get_job_status(job_id)
+            
+            if not job_data:
+                return jsonify({'success': False, 'message': 'Job not found.'}), 404
+            
+            # Format next post time for display
+            next_post_time = None
+            if job_data.get('next_post_time'):
+                try:
+                    next_time = datetime.fromisoformat(job_data['next_post_time'])
+                    next_post_time = next_time.strftime('%Y-%m-%d %H:%M:%S')
+                except:
+                    pass
+            
+            return jsonify({
+                'success': True,
+                'job_id': job_id,
+                'status': job_data['status'],
+                'total': job_data['total_items'],
+                'completed': job_data['completed'],
+                'failed': job_data['failed'],
+                'next_post_time': next_post_time,
+                'errors': job_data.get('errors', [])
+            })
+            
+        except Exception as e:
+            logger.error(f"Error getting job status: {e}")
+            return jsonify({'success': False, 'message': f'Error getting job status: {str(e)}'}), 500
+    
+    @app.route('/api/discord-bulk-job-cancel/<job_id>', methods=['POST'])
+    def discord_bulk_job_cancel(job_id):
+        """Cancel a running Discord bulk job."""
+        try:
+            success, message = discord_bulk_service.cancel_job(job_id)
+            
+            if success:
+                return jsonify({'success': True, 'message': message})
+            else:
+                return jsonify({'success': False, 'message': message}), 400
+                
+        except Exception as e:
+            logger.error(f"Error cancelling job: {e}")
+            return jsonify({'success': False, 'message': f'Error cancelling job: {str(e)}'}), 500
 
 # Unified uploader route
 if app.config['ENABLE_YOUTUBE_UPLOAD'] or app.config['ENABLE_INSTAGRAM_UPLOAD']:

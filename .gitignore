@@ -151,6 +151,8 @@ discord_config.json
 *.pickle
 quota_client1.json
 quota_client2.json
+token_client2.pickle
+token_client1.pickle
 
 # Environment variables
 .env

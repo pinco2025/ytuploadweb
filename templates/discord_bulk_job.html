@@ -1,0 +1,341 @@
+{% extends "base.html" %}
+{% block title %}Discord Bulk Job{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <div class="mb-4 text-end">
+        <a href="/discord-job" class="btn btn-primary">
+            <i class="fas fa-arrow-left me-2"></i>Back to Discord Job
+        </a>
+    </div>
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h2 class="text-center mb-0">
+                        <i class="fab fa-discord me-2"></i>Discord Bulk Job
+                    </h2>
+                </div>
+                <div class="card-body">
+                    <form id="discordBulkJobForm" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="json_file" class="form-label">
+                                <i class="fas fa-file-upload me-1"></i>JSON File Upload
+                                <button type="button" class="btn btn-sm btn-outline-info ms-2" data-bs-toggle="modal" data-bs-target="#jsonFormatModal" title="Show JSON format example">
+                                    <i class="fas fa-info-circle"></i>
+                                </button>
+                            </label>
+                            <input type="file" class="form-control" id="json_file" name="json_file" accept=".json" required>
+                            <div class="form-text">Upload a JSON file with links and names</div>
+                            <div class="validation-error" id="json_file_error"></div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="webhook_type" class="form-label">
+                                <i class="fas fa-cog me-1"></i>Webhook Type
+                            </label>
+                            <select class="form-select" id="webhook_type" name="webhook_type" required>
+                                <option value="">Select webhook type...</option>
+                                <option value="submit_job">Submit Job</option>
+                                <option value="nocap_job">No Cap Job</option>
+                                <option value="custom">Custom Webhook URL</option>
+                            </select>
+                            <div class="form-text">Choose from n8n webhooks or use a custom URL</div>
+                        </div>
+                        
+                        <div class="mb-3" id="custom_webhook_div" style="display: none;">
+                            <label for="webhook_url" class="form-label">
+                                <i class="fas fa-link me-1"></i>Custom Discord Webhook URL
+                            </label>
+                            <input type="url" class="form-control" id="webhook_url" name="webhook_url" placeholder="https://discord.com/api/webhooks/...">
+                            <div class="validation-error" id="webhook_url_error"></div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="interval_minutes" class="form-label">
+                                <i class="fas fa-clock me-1"></i>Interval (minutes)
+                            </label>
+                            <input type="number" class="form-control" id="interval_minutes" name="interval_minutes" value="5" min="1" max="60" required>
+                            <div class="form-text">Time between each webhook post (default: 5 minutes)</div>
+                        </div>
+                        
+                        <div class="d-grid mb-3">
+                            <button type="submit" class="btn btn-success btn-lg" id="startBulkJobBtn">
+                                <i class="fas fa-play me-2"></i>Start Bulk Job
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <div id="statusArea" class="mt-4"></div>
+                    <div class="text-center mt-3 loading-spinner" id="loadingSpinner" style="display:none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Processing...</span>
+                        </div>
+                        <p class="mt-2">Processing bulk job...</p>
+                    </div>
+                    
+                    <div id="jobProgress" class="mt-4" style="display:none;">
+                        <div class="card">
+                            <div class="card-header bg-info text-white">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-tasks me-2"></i>Job Progress
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="progress mb-3">
+                                    <div class="progress-bar" role="progressbar" style="width: 0%"></div>
+                                </div>
+                                <div id="progressDetails"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JSON Format Example Modal -->
+<div class="modal fade" id="jsonFormatModal" tabindex="-1" aria-labelledby="jsonFormatModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="jsonFormatModalLabel">
+                    <i class="fas fa-info-circle me-2"></i>JSON File Format Example
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Your JSON file should contain an array of objects with the following format:</p>
+                <div class="position-relative">
+                    <button type="button" class="btn btn-sm btn-outline-primary position-absolute" style="top: 10px; right: 10px; z-index: 10;" onclick="copyJsonExample()">
+                        <i class="fas fa-copy me-1"></i>Copy
+                    </button>
+                    <textarea class="form-control" style="font-family: 'Courier New', monospace; font-size: 14px; line-height: 1.4; height: 200px; resize: none; background-color: #f8f9fa; border: 1px solid #dee2e6;" readonly>[{
+  "name": "Job 1",
+  "message_link": "https://discord.com/channels/123456789/987654321/111222333"
+}, {
+  "name": "Job 2", 
+  "message_link": "https://discord.com/channels/123456789/987654321/444555666"
+}]</textarea>
+                </div>
+                <div class="mt-3">
+                    <p class="text-muted mb-2">Each object should have a "name" and "message_link" field.</p>
+                    <p class="text-muted mb-0"><strong>Requirements:</strong></p>
+                    <ul class="text-muted small">
+                        <li>File must be valid JSON format</li>
+                        <li>Each object must have "name" and "message_link" properties</li>
+                        <li>Values cannot be empty</li>
+                        <li>Message links must be valid Discord message URLs</li>
+                        <li>Each Discord message must have exactly 8 attachments (4 audio + 4 images)</li>
+                        <li>Posts will be sent to n8n webhooks at specified intervals</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Handle webhook type selection
+document.getElementById('webhook_type').addEventListener('change', function() {
+    const webhookType = this.value;
+    const customWebhookDiv = document.getElementById('custom_webhook_div');
+    const webhookUrlInput = document.getElementById('webhook_url');
+    
+    if (webhookType === 'custom') {
+        customWebhookDiv.style.display = 'block';
+        webhookUrlInput.required = true;
+    } else if (webhookType === 'submit_job' || webhookType === 'nocap_job') {
+        customWebhookDiv.style.display = 'none';
+        webhookUrlInput.required = false;
+        // Load webhook URL from n8n config
+        loadWebhookUrl(webhookType);
+    } else {
+        customWebhookDiv.style.display = 'none';
+        webhookUrlInput.required = false;
+        webhookUrlInput.value = '';
+    }
+});
+
+// Load webhook URL from n8n config
+function loadWebhookUrl(webhookType) {
+    fetch('/api/n8n/config')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.config && data.config.webhook_urls) {
+                const webhookUrl = data.config.webhook_urls[webhookType];
+                if (webhookUrl) {
+                    // Store the webhook URL in a hidden field for form submission
+                    let hiddenField = document.getElementById('selected_webhook_url');
+                    if (!hiddenField) {
+                        hiddenField = document.createElement('input');
+                        hiddenField.type = 'hidden';
+                        hiddenField.id = 'selected_webhook_url';
+                        hiddenField.name = 'webhook_url';
+                        document.getElementById('discordBulkJobForm').appendChild(hiddenField);
+                    }
+                    hiddenField.value = webhookUrl;
+                    
+                    // Show success message
+                    const statusArea = document.getElementById('statusArea');
+                    statusArea.innerHTML = `<div class='alert alert-info'>
+                        <i class='fas fa-info-circle me-2'></i>Using ${webhookType.replace('_', ' ')} webhook from n8n configuration
+                    </div>`;
+                } else {
+                    showError(`No webhook URL configured for ${webhookType.replace('_', ' ')}`);
+                }
+            } else {
+                showError('Failed to load n8n configuration');
+            }
+        })
+        .catch(err => {
+            showError('Error loading n8n configuration: ' + err);
+        });
+}
+
+function showError(message) {
+    const statusArea = document.getElementById('statusArea');
+    statusArea.innerHTML = `<div class='alert alert-danger'>
+        <i class='fas fa-exclamation-triangle me-2'></i>${message}
+    </div>`;
+}
+
+document.getElementById('discordBulkJobForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    var formData = new FormData(this);
+    var statusArea = document.getElementById('statusArea');
+    var spinner = document.getElementById('loadingSpinner');
+    var jobProgress = document.getElementById('jobProgress');
+    
+    // Clear previous errors
+    document.getElementById('json_file_error').textContent = '';
+    document.getElementById('webhook_url_error').textContent = '';
+    statusArea.innerHTML = '';
+    
+    // Validate webhook selection
+    const webhookType = document.getElementById('webhook_type').value;
+    if (!webhookType) {
+        showError('Please select a webhook type');
+        return;
+    }
+    
+    // Validate custom webhook URL if selected
+    if (webhookType === 'custom') {
+        var webhookUrl = document.getElementById('webhook_url').value;
+        if (!webhookUrl || !webhookUrl.startsWith('https://discord.com/api/webhooks/')) {
+            document.getElementById('webhook_url_error').textContent = 'Please enter a valid Discord webhook URL';
+            return;
+        }
+    }
+    
+    spinner.style.display = 'block';
+    jobProgress.style.display = 'none';
+    
+    fetch('/discord-bulk-job', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        spinner.style.display = 'none';
+        
+        if (data.success) {
+            statusArea.innerHTML = `<div class='alert alert-success'>
+                <i class='fas fa-check-circle me-2'></i>${data.message}
+                <br><small class="text-muted">Job ID: ${data.job_id}</small>
+            </div>`;
+            
+            // Show progress area
+            jobProgress.style.display = 'block';
+            updateJobProgress(data.job_id);
+        } else {
+            statusArea.innerHTML = `<div class='alert alert-danger'>
+                <i class='fas fa-exclamation-triangle me-2'></i>${data.message}
+            </div>`;
+        }
+    })
+    .catch(err => {
+        spinner.style.display = 'none';
+        statusArea.innerHTML = `<div class='alert alert-danger'>
+            <i class='fas fa-exclamation-triangle me-2'></i>Error: ${err}
+        </div>`;
+    });
+});
+
+function updateJobProgress(jobId) {
+    const progressBar = document.querySelector('.progress-bar');
+    const progressDetails = document.getElementById('progressDetails');
+    
+    function checkProgress() {
+        fetch(`/api/discord-bulk-job-status/${jobId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const progress = (data.completed / data.total) * 100;
+                    progressBar.style.width = progress + '%';
+                    progressBar.textContent = `${data.completed}/${data.total}`;
+                    
+                    progressDetails.innerHTML = `
+                        <div class="row">
+                            <div class="col-md-6">
+                                <strong>Completed:</strong> ${data.completed}/${data.total}
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Next Post:</strong> ${data.next_post_time || 'N/A'}
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <strong>Status:</strong> ${data.status}
+                        </div>
+                    `;
+                    
+                    if (data.completed < data.total) {
+                        setTimeout(checkProgress, 10000); // Check every 10 seconds
+                    }
+                }
+            })
+            .catch(err => {
+                console.error('Error checking progress:', err);
+            });
+    }
+    
+    checkProgress();
+}
+
+// Copy JSON example function
+function copyJsonExample() {
+    const jsonExample = `[{
+  "name": "Job 1",
+  "message_link": "https://discord.com/channels/123456789/987654321/111222333"
+}, {
+  "name": "Job 2", 
+  "message_link": "https://discord.com/channels/123456789/987654321/444555666"
+}]`;
+    
+    navigator.clipboard.writeText(jsonExample).then(function() {
+        // Show success feedback
+        const copyBtn = document.querySelector('[onclick="copyJsonExample()"]');
+        const originalText = copyBtn.innerHTML;
+        copyBtn.innerHTML = '<i class="fas fa-check me-1"></i>Copied!';
+        copyBtn.classList.remove('btn-outline-primary');
+        copyBtn.classList.add('btn-success');
+        
+        setTimeout(function() {
+            copyBtn.innerHTML = originalText;
+            copyBtn.classList.remove('btn-success');
+            copyBtn.classList.add('btn-outline-primary');
+        }, 2000);
+    }).catch(function(err) {
+        console.error('Failed to copy: ', err);
+        alert('Failed to copy to clipboard. Please select and copy manually.');
+    });
+}
+
+</script>
+{% endblock %} 

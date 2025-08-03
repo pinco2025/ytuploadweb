@@ -11,6 +11,7 @@ A modern Flask web application for uploading videos to YouTube as Shorts and Ins
 - **Modern UI**: Dark navbar, bold branding, and app-wide navigation
 - **n8n Integration**: Easily manage webhook URLs via a modal in the navbar
 - **Discord Job Submission**: Upload files in Discord, submit jobs via message link
+- **Discord Bulk Job**: Upload JSON file with links and names, post to webhook with configurable intervals
 - **Gemini AI Integration**: Auto-generate SEO-optimized titles, descriptions, and hashtags based on filenames
 - **Google Drive Integration**: Extract filenames from Google Drive links using service account credentials
 - **Feature Flags**: Enable/disable modules via `.env` file
@@ -25,6 +26,7 @@ Web-Api-Sys/
 ├── youtube_service.py        # YouTube service with quota management
 ├── instagram_service.py      # Instagram service with API management
 ├── gemini_service.py         # Gemini AI service for content generation
+├── discord_bulk_service.py   # Discord bulk job service
 ├── validators.py             # Comprehensive input validation
 ├── config.py                 # Configuration settings
 ├── requirements.txt          # Python dependencies
@@ -36,6 +38,7 @@ Web-Api-Sys/
 │   ├── instagram.html        # Instagram upload interface
 │   ├── success.html          # Success page (theme-mapped)
 │   ├── discord_job.html      # Discord job submission page
+│   ├── discord_bulk_job.html # Discord bulk job page
 │   ├── n8n.html              # n8n job submission page
 │   └── oauth_callback.html   # OAuth callback page
 ├── static/
@@ -65,6 +68,7 @@ Set any to `false` to hide its routes and navigation. The n8n webhook config mod
 - **YouTube Uploader**: Upload videos to YouTube with quota tracking and multi-client support.
 - **Instagram Uploader**: Upload videos to Instagram Reels with multi-account support and content publishing.
 - **Discord Job Submission**: Upload 8 files in a Discord message, copy the message link, and submit via the app.
+- **Discord Bulk Job**: Upload a JSON file containing links and names, configure webhook URL and interval, and automatically post to Discord with 5-minute intervals (configurable).
 - **n8n Jobs**: Submit jobs to n8n webhooks (if enabled).
 - **Google Drive Filename Extraction**: The system automatically extracts filenames from Google Drive links. With service account credentials, you get accurate filenames. Without them, the system uses fallback methods.
 - **Gemini AI Content Generation**: Enter a Google Drive link, select your platform, and click "AI Generate" to automatically create SEO-optimized titles, descriptions, and hashtags based on the filename.

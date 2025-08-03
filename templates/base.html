@@ -22,10 +22,18 @@
                 </li>
                 {% endif %}
                 {% if config.ENABLE_DISCORD_JOB %}
-                <li class="nav-item">
-                    <a class="nav-link{% if request.path.startswith('/discord-job') %} active{% endif %}" href="/discord-job">
-                        <i class="fab fa-discord me-1"></i>Discord Job Submission
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle{% if request.path.startswith('/discord-job') or request.path.startswith('/discord-bulk-job') %} active{% endif %}" href="#" id="discordDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fab fa-discord me-1"></i>Discord Jobs
                     </a>
+                    <ul class="dropdown-menu" aria-labelledby="discordDropdown">
+                        <li><a class="dropdown-item{% if request.path == '/discord-job' %} active{% endif %}" href="/discord-job">
+                            <i class="fas fa-link me-1"></i>Single Job
+                        </a></li>
+                        <li><a class="dropdown-item{% if request.path == '/discord-bulk-job' %} active{% endif %}" href="/discord-bulk-job">
+                            <i class="fas fa-list me-1"></i>Bulk Job
+                        </a></li>
+                    </ul>
                 </li>
                 {% endif %}
                 {% if config.ENABLE_N8N_JOBS %}
