@@ -58,7 +58,7 @@ class DiscordBulkJobService:
         self._shutdown_event.set()
     
     def create_bulk_job(self, json_data: List[Dict], webhook_url: str, 
-                        interval_minutes: int = 5, webhook_type: str = 'submit_job') -> Tuple[bool, str, str]:
+                        interval_minutes: int = 5, webhook_type: str = 'submit_job', channel_name: str = None) -> Tuple[bool, str, str]:
         """
         Create a new bulk job with the provided data.
         
@@ -67,7 +67,8 @@ class DiscordBulkJobService:
             webhook_url: n8n webhook URL
             interval_minutes: Minutes between posts (default: 5)
             webhook_type: Type of webhook ('submit_job' or 'nocap_job')
-            
+            channel_name: Name of the Discord channel (optional)
+        
         Returns:
             Tuple of (success, message, job_id)
         """
@@ -112,7 +113,8 @@ class DiscordBulkJobService:
                 'start_time': datetime.now().isoformat(),
                 'next_post_time': None,
                 'last_post_time': None,
-                'errors': []
+                'errors': [],
+                'channel_name': channel_name
             }
             
             # Store job data
@@ -174,7 +176,8 @@ class DiscordBulkJobService:
                         'audios': attachments['audios'],
                         'images': attachments['images'],
                         'job_type': job_data['webhook_type'],
-                        'user': item['name']
+                        'user': item['name'],
+                        'channel_name': job_data.get('channel_name')
                     }
                     
                     # Post to n8n webhook

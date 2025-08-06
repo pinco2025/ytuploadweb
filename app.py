@@ -228,6 +228,7 @@ if app.config['ENABLE_DISCORD_JOB']:
             webhook_type = request.form.get('webhook_type', '').strip()
             webhook_url = request.form.get('webhook_url', '').strip()
             interval_minutes = int(request.form.get('interval_minutes', 5))
+            channel_name = request.form.get('channel_name', '').strip()
             
             # Validate required fields
             if not json_file:
@@ -235,6 +236,9 @@ if app.config['ENABLE_DISCORD_JOB']:
             
             if not webhook_type:
                 return jsonify({'success': False, 'message': 'Please select a webhook type.'}), 400
+            
+            if not channel_name:
+                return jsonify({'success': False, 'message': 'Please select a channel name.'}), 400
             
             # Handle webhook URL based on type
             if webhook_type in ['submit_job', 'nocap_job']:
@@ -302,7 +306,8 @@ if app.config['ENABLE_DISCORD_JOB']:
                 json_data=json_data,
                 webhook_url=webhook_url,
                 interval_minutes=interval_minutes,
-                webhook_type=webhook_type
+                webhook_type=webhook_type,
+                channel_name=channel_name
             )
             
             if success:
