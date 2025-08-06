@@ -115,6 +115,7 @@ if app.config['ENABLE_DISCORD_JOB']:
         message_link = request.form.get('message_link', '').strip()
         job_type = request.form.get('job_type', 'default')
         user = request.form.get('user', '').strip()
+        channel_name = request.form.get('channel_name', '').strip()  # NEW: get channel name
         bot_token = os.environ.get('DISCORD_BOT_TOKEN')
         if not message_link or not bot_token:
             return jsonify({'success': False, 'message': 'Missing message link or bot token.'}), 400
@@ -166,7 +167,8 @@ if app.config['ENABLE_DISCORD_JOB']:
             'audios': audios,
             'images': images,
             'job_type': job_type,
-            'user': user
+            'user': user,
+            'channel_name': channel_name  # NEW: include channel name
         }
         n8n_config = load_n8n_config()
         WEBHOOK_URLS = n8n_config.get('webhook_urls', {})

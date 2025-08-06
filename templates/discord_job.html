@@ -31,6 +31,15 @@
                             <input type="text" class="form-control" id="user" name="user" placeholder="Enter user name or ID (optional)">
                         </div>
                         <div class="mb-3">
+                            <label for="channel_name" class="form-label">
+                                <i class="fas fa-hashtag me-1"></i>Channel Name
+                            </label>
+                            <select class="form-select" id="channel_name" name="channel_name" required>
+                                <option value="">Select a channel...</option>
+                                <!-- Options will be populated by JS -->
+                            </select>
+                        </div>
+                        <div class="mb-3">
                             <label for="job_type" class="form-label">
                                 <i class="fas fa-tasks me-1"></i>Job Type
                             </label>
@@ -60,11 +69,26 @@
 {% endblock %}
 {% block scripts %}
 <script>
+// Populate channel name dropdown from external JSON
+fetch('/static/js/discord_channels.json')
+    .then(response => response.json())
+    .then(data => {
+        const dropdown = document.getElementById('channel_name');
+        if (Array.isArray(data.channels)) {
+            data.channels.forEach(name => {
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                dropdown.appendChild(opt);
+            });
+        }
+    });
 document.getElementById('discordJobForm').addEventListener('submit', function(e) {
     e.preventDefault();
     var messageLink = document.getElementById('message_link').value.trim();
     var jobType = document.getElementById('job_type').value;
     var user = document.getElementById('user').value;
+    var channelName = document.getElementById('channel_name').value;
     var statusArea = document.getElementById('statusArea');
     var spinner = document.getElementById('loadingSpinner');
     var messageLinkError = document.getElementById('message_link_error');
@@ -78,11 +102,16 @@ document.getElementById('discordJobForm').addEventListener('submit', function(e)
         messageLinkError.textContent = 'Please enter a valid Discord message link.';
         return;
     }
+    if (!channelName) {
+        alert('Please select a channel name.');
+        return;
+    }
     spinner.style.display = 'block';
     var formData = new FormData();
     formData.append('message_link', messageLink);
     formData.append('job_type', jobType);
     formData.append('user', user);
+    formData.append('channel_name', channelName);
     fetch('/discord-job', {
         method: 'POST',
         body: formData
