@@ -186,11 +186,11 @@ if app.config['ENABLE_DISCORD_JOB']:
                 if not isinstance(item, dict):
                     return jsonify({'success': False, 'message': f'Video item {i+1} is not a valid object.'}), 400
                 
-                if 'user' not in item or 'message_link' not in item or 'background_audio' not in item:
-                    return jsonify({'success': False, 'message': f'Video item {i+1} missing required "user", "message_link", or "background_audio" field.'}), 400
+                if 'name' not in item or 'message_link' not in item or 'background_audio' not in item:
+                    return jsonify({'success': False, 'message': f'Video item {i+1} missing required "name", "message_link", or "background_audio" field.'}), 400
                 
-                if not item['user'] or not item['message_link'] or not item['background_audio']:
-                    return jsonify({'success': False, 'message': f'Video item {i+1} has empty user, message_link, or background_audio.'}), 400
+                if not item['name'] or not item['message_link'] or not item['background_audio']:
+                    return jsonify({'success': False, 'message': f'Video item {i+1} has empty name, message_link, or background_audio.'}), 400
                 
                 # Validate Discord message link format
                 message_link = item['message_link'].strip()
@@ -888,7 +888,7 @@ def update_n8n_config():
         # Remove trailing slash if present
         if base_url.endswith('/'):
             base_url = base_url[:-1]
-        submit_url = f"{base_url}/webhook/discord-input"
+        submit_url = f"{base_url}/webhook/bgaud"
         nocap_url = f"{base_url}/webhook/back"
         success = n8n_service.update_webhook_urls(submit_url, nocap_url)
         if success:
@@ -923,6 +923,7 @@ if app.config['ENABLE_DISCORD_JOB']:
             user = data.get('user')
             images = data.get('images', [])
             audios = data.get('audios', [])
+            background_audio = data.get('background_audio')
             
             if not user:
                 return jsonify({"error": "User field is required"}), 400
@@ -938,7 +939,7 @@ if app.config['ENABLE_DISCORD_JOB']:
             audios = [audios[3], audios[2], audios[1], audios[0]]
 
             # Submit job to Discord webhook
-            success, message, status_code = n8n_service.submit_job(user, images, audios)
+            success, message, status_code = n8n_service.submit_job(user, images, audios, background_audio)
             
             if success:
                 return jsonify({"message": message}), 200

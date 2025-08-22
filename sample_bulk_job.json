@@ -1,16 +1,16 @@
 [
   {
-    "user": "Job 1 - Amazing Video Tutorial",
+    "name": "Job 1 - Amazing Video Tutorial",
     "message_link": "https://discord.com/channels/123456789012345678/987654321098765432/111222333444555666",
     "background_audio": "https://example.com/background1.mp3"
   },
   {
-    "user": "Job 2 - Incredible Content Episode", 
+    "name": "Job 2 - Incredible Content Episode", 
     "message_link": "https://discord.com/channels/123456789012345678/987654321098765432/777888999000111222",
     "background_audio": "https://example.com/background2.mp3"
   },
   {
-    "user": "Job 3 - Epic Gaming Highlights",
+    "name": "Job 3 - Epic Gaming Highlights",
     "message_link": "https://discord.com/channels/123456789012345678/987654321098765432/333444555666777888",
     "background_audio": "https://example.com/background3.mp3"
   }

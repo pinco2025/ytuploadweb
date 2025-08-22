@@ -63,7 +63,7 @@ class DiscordBulkJobService:
         Create a new bulk job with the provided data.
         
         Args:
-            json_data: List of dictionaries, each with 'user', 'message_link', and 'background_audio' keys
+            json_data: List of dictionaries, each with 'name', 'message_link', and 'background_audio' keys
             webhook_url: n8n webhook URL
             interval_minutes: Minutes between posts (default: 5)
             webhook_type: Type of webhook ('submit_job' or 'nocap_job')
@@ -82,11 +82,11 @@ class DiscordBulkJobService:
                 if not isinstance(item, dict):
                     return False, f"Video item {i} is not a valid object", ""
                 
-                if 'user' not in item or 'message_link' not in item or 'background_audio' not in item:
-                    return False, f"Video item {i} missing required 'user', 'message_link', or 'background_audio' field", ""
+                if 'name' not in item or 'message_link' not in item or 'background_audio' not in item:
+                    return False, f"Video item {i} missing required 'name', 'message_link', or 'background_audio' field", ""
                 
-                if not item['user'] or not item['message_link'] or not item['background_audio']:
-                    return False, f"Video item {i} has empty user, message_link, or background_audio", ""
+                if not item['name'] or not item['message_link'] or not item['background_audio']:
+                    return False, f"Video item {i} has empty name, message_link, or background_audio", ""
             
             # Validate webhook URL
             if not webhook_url:
@@ -171,14 +171,13 @@ class DiscordBulkJobService:
                                 job_data['errors'].append(f"Failed to extract attachments from message {i+1}: {str(e)}")
                         continue
                     
-                    # Create payload for n8n webhook with background_audio from each video object
+                    # Create payload for n8n webhook with separate background_audio field
                     n8n_payload = {
-                        'audios': attachments['audios'],
-                        'images': attachments['images'],
-                        'background_audio': item['background_audio'],  # Use background_audio from each video object
-                        'job_type': job_data['webhook_type'],
-                        'user': item['user'],
-                        'channel_name': job_data.get('channel_name')
+                        'user': item['name'],  # Use 'name' field from JSON
+                        'images': attachments['images'],  # 4 images from Discord
+                        'audios': attachments['audios'],  # 4 audios from Discord (keep original)
+                        'background_audio': item['background_audio'],  # Separate background audio field
+                        'channel_name': job_data.get('channel_name')  # Include channel name
                     }
                     
                     # Post to n8n webhook
