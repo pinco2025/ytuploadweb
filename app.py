@@ -1,3 +1,13 @@
+# --- Flask Application for YouTube Shorts Uploader and n8n Integration ---
+#
+# This app provides endpoints for uploading videos to YouTube from Google Drive,
+# managing multiple OAuth clients/channels, and submitting jobs to n8n webhooks.
+#
+# All business logic is handled in service classes. This file wires up the routes.
+
+# --- Discord single job functionality has been removed ---
+# Only Discord bulk job functionality remains
+
 from flask import Flask, request, render_template, jsonify, flash, redirect, url_for, session, abort
 import os
 import uuid
@@ -97,112 +107,8 @@ def cleanup_on_flask_shutdown():
     except Exception as e:
         logger.error(f"Error during Flask shutdown cleanup: {e}")
 
-# --- Flask Application for YouTube Shorts Uploader and n8n Integration ---
-#
-# This app provides endpoints for uploading videos to YouTube from Google Drive,
-# managing multiple OAuth clients/channels, and submitting jobs to n8n webhooks.
-#
-# All business logic is handled in service classes. This file wires up the routes.
-# --- New Route: Discord Job Submission ---
-if app.config['ENABLE_DISCORD_JOB']:
-    @app.route('/discord-job', methods=['GET', 'POST'])
-    def discord_job():
-        """Accept a Discord message link, extract attachment URLs, and send to n8n. Also display payload and n8n response for testing/logging."""
-        if request.method == 'GET':
-            return render_template('discord_job.html', config=app.config)
-
-        # POST: handle job logic
-        message_link = request.form.get('message_link', '').strip()
-        job_type = request.form.get('job_type', 'default')
-        user = request.form.get('user', '').strip()
-        channel_name = request.form.get('channel_name', '').strip()  # NEW: get channel name
-        bot_token = os.environ.get('DISCORD_BOT_TOKEN')
-        if not message_link or not bot_token:
-            return jsonify({'success': False, 'message': 'Missing message link or bot token.'}), 400
-
-        # Accept both discord.com and discordapp.com links
-        if 'discordapp.com' in message_link:
-            message_link = message_link.replace('discordapp.com', 'discord.com')
-        if message_link.startswith('discord://'):
-            message_link = message_link.replace('discord://discord', 'https://discord.com')
-            message_link = message_link.replace('discord://', 'https://discord.com/')
-        message_link = message_link.strip()  # Extra strip after replacements
-
-        parts = message_link.strip('/').split('/')
-
-        channel_id = parts[-2] if len(parts) >= 2 else ''
-        message_id = parts[-1] if len(parts) >= 1 else ''
-
-        # Fetch the message from Discord API
-        url = f'https://discord.com/api/v10/channels/{channel_id}/messages/{message_id}'
-        headers = {'Authorization': f'Bot {bot_token}'}
-        resp = requests.get(url, headers=headers)
-        if resp.status_code != 200:
-            return jsonify({'success': False, 'message': f'Failed to fetch message: {resp.text}'}), 400
-        data = resp.json()
-        attachments = data.get('attachments', [])
-        if len(attachments) != 8:
-            return jsonify({'success': False, 'message': 'Message must have exactly 8 attachments.'}), 400
-
-        # Separate audio and image files by extension
-        audio_exts = {'.mp3', '.wav', '.m4a', '.aac', '.mp4'}
-        image_exts = {'.jpg', '.jpeg', '.png', '.webp'}
-        audios_full = [a for a in attachments if any(a['filename'].lower().endswith(ext) for ext in audio_exts)]
-        images_full = [a for a in attachments if any(a['filename'].lower().endswith(ext) for ext in image_exts)]
-        audios = [a['url'] for a in audios_full]
-        images = [a['url'] for a in images_full]
-        audio_filenames = [a['filename'] for a in audios_full]
-        image_filenames = [a['filename'] for a in images_full]
-        if len(audios) != 4 or len(images) != 4:
-            return jsonify({'success': False, 'message': 'Message must have 4 audio and 4 image files.'}), 400
-
-        # Reverse the order of images and audios as they appear in the message
-        images = images[::-1]
-        image_filenames = image_filenames[::-1]
-        audios = audios[::-1]
-        audio_filenames = audio_filenames[::-1]
-
-        # Build payload for n8n
-        n8n_payload = {
-            'audios': audios,
-            'images': images,
-            'job_type': job_type,
-            'user': user,
-            'channel_name': channel_name  # NEW: include channel name
-        }
-        n8n_config = load_n8n_config()
-        WEBHOOK_URLS = n8n_config.get('webhook_urls', {})
-        if job_type not in WEBHOOK_URLS:
-            return jsonify({'success': False, 'message': 'Invalid job type or webhook not configured.'}), 400
-        webhook_url = WEBHOOK_URLS[job_type]
-        try:
-            n8n_resp = requests.post(webhook_url, json=n8n_payload)
-            n8n_resp_json = n8n_resp.json() if n8n_resp.headers.get('Content-Type', '').startswith('application/json') else n8n_resp.text
-        except Exception as e:
-            return jsonify({'success': False, 'message': f'n8n webhook error: {str(e)}', 'n8n_payload': n8n_payload}), 500
-        if n8n_resp.status_code == 200:
-            return jsonify({
-                'success': True,
-                'message': 'Job submitted successfully.',
-                'audio_links': audios,
-                'image_links': images,
-                'audio_filenames': audio_filenames,
-                'image_filenames': image_filenames,
-                'original_audio_filenames': [a['filename'] for a in audios_full],
-                'original_image_filenames': [a['filename'] for a in images_full],
-                'original_audio_links': [a['url'] for a in audios_full],
-                'original_image_links': [a['url'] for a in images_full],
-                'webhook_url': webhook_url,
-                'n8n_payload': n8n_payload,
-                'n8n_response': n8n_resp_json
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'message': f'n8n webhook error: {n8n_resp.text}',
-                'n8n_payload': n8n_payload,
-                'n8n_response': n8n_resp_json
-            }), 500
+# --- Discord single job functionality has been removed ---
+# Only Discord bulk job functionality remains
 
 def load_n8n_config():
     """Load n8n webhook configuration from file."""
@@ -270,21 +176,21 @@ if app.config['ENABLE_DISCORD_JOB']:
             
             # Validate JSON structure
             if not isinstance(json_data, list):
-                return jsonify({'success': False, 'message': 'JSON file must contain an array of objects.'}), 400
+                return jsonify({'success': False, 'message': 'JSON file must contain an array of video objects.'}), 400
             
             if len(json_data) == 0:
-                return jsonify({'success': False, 'message': 'JSON file must contain at least one item.'}), 400
+                return jsonify({'success': False, 'message': 'JSON file must contain at least one video item.'}), 400
             
-            # Validate each item
+            # Validate each video item
             for i, item in enumerate(json_data):
                 if not isinstance(item, dict):
-                    return jsonify({'success': False, 'message': f'Item {i+1} is not a valid object.'}), 400
+                    return jsonify({'success': False, 'message': f'Video item {i+1} is not a valid object.'}), 400
                 
-                if 'name' not in item or 'message_link' not in item:
-                    return jsonify({'success': False, 'message': f'Item {i+1} missing required "name" or "message_link" field.'}), 400
+                if 'user' not in item or 'message_link' not in item or 'background_audio' not in item:
+                    return jsonify({'success': False, 'message': f'Video item {i+1} missing required "user", "message_link", or "background_audio" field.'}), 400
                 
-                if not item['name'] or not item['message_link']:
-                    return jsonify({'success': False, 'message': f'Item {i+1} has empty name or message_link.'}), 400
+                if not item['user'] or not item['message_link'] or not item['background_audio']:
+                    return jsonify({'success': False, 'message': f'Video item {i+1} has empty user, message_link, or background_audio.'}), 400
                 
                 # Validate Discord message link format
                 message_link = item['message_link'].strip()
@@ -372,210 +278,11 @@ if app.config['ENABLE_DISCORD_JOB']:
             logger.error(f"Error cancelling job: {e}")
             return jsonify({'success': False, 'message': f'Error cancelling job: {str(e)}'}), 500
 
-# Unified uploader route
-if app.config['ENABLE_YOUTUBE_UPLOAD'] or app.config['ENABLE_INSTAGRAM_UPLOAD']:
-    @app.route('/', methods=['GET', 'POST'])
-    def unified_upload():
-        """Main upload page with improved error handling and validation."""
-        if request.method == 'POST':
-            try:
-                # Get form data from POST request
-                form_data = {
-                    'drive_link': request.form.get('drive_link', ''),
-                    'direct_drive_link': request.form.get('direct_drive_link', ''),  # For Instagram
-                    'title': request.form.get('title', ''),
-                    'description': request.form.get('description', ''),
-                    'hashtags': request.form.get('hashtags', ''),
-                    'privacy': request.form.get('privacy', 'public'),
-                    'client_id': request.form.get('client_id', ''),
-                    'channel_id': request.form.get('channel_id', ''),
-                    'platform': request.form.get('platform', '')
-                }
-                
-
-                
-                # Get available clients and channels/accounts for validation
-                available_clients = auth_manager.get_all_clients()
-                if not available_clients:
-                    flash('No clients configured. Please check your clients.json file.', 'error')
-                    return render_template('unified_upload.html', clients=[], quota_status={}, config=app.config)
-                
-                # Determine platform and get appropriate channels/accounts
-                platform = form_data.get('platform', '')
-                selected_client_id = form_data.get('client_id', '')
-                
-                if platform == 'youtube':
-                    available_channels, channel_message = youtube_service.get_channels_for_client(selected_client_id)
-                elif platform == 'instagram':
-                    available_channels, channel_message = instagram_service.get_accounts_for_client(selected_client_id)
-                else:
-                    flash('Invalid platform selected.', 'error')
-                    return render_template('unified_upload.html', clients=[], quota_status={}, config=app.config)
-                
-                if channel_message != "Success":
-                    flash(f'Error loading channels: {channel_message}', 'error')
-                    clients = auth_manager.get_all_clients()
-                    quota_status = {c['id']: youtube_service.get_quota_status(c['id']) for c in clients}
-                    return render_template('index.html', clients=clients, quota_status=quota_status, config=app.config)
-                
-                # Validate all form data based on platform
-                if platform == 'youtube':
-                    is_valid, error_msg, cleaned_data = InputValidator.validate_upload_form_data(
-                        form_data, available_clients, available_channels
-                    )
-                elif platform == 'instagram':
-                    is_valid, error_msg, cleaned_data = InputValidator.validate_instagram_upload_form_data(
-                        form_data, available_clients, available_channels
-                    )
-                else:
-                    is_valid, error_msg, cleaned_data = False, 'Invalid platform', {}
-                
-                if not is_valid:
-                    flash(error_msg, 'error')
-                    clients = auth_manager.get_all_clients()
-                    quota_status = {c['id']: youtube_service.get_quota_status(c['id']) for c in clients}
-                    return render_template('unified_upload.html', clients=clients, quota_status=quota_status, config=app.config)
-                
-                # Check quota before proceeding (YouTube only)
-                if platform == 'youtube':
-                    quota_status = youtube_service.get_quota_status(cleaned_data['client_id'])
-                    if quota_status.get('remaining_quota', 0) < 1600:  # Upload costs 1600 quota points
-                        flash(f'Insufficient API quota for client {cleaned_data["client_id"]}. Remaining: {quota_status.get("remaining_quota", 0)}', 'error')
-                        clients = auth_manager.get_all_clients()
-                        quota_status = {c['id']: youtube_service.get_quota_status(c['id']) for c in clients}
-                        return render_template('unified_upload.html', clients=clients, quota_status=quota_status, config=app.config)
-                
-                try:
-                    # Handle different platforms
-                    if platform == 'youtube':
-                        # YouTube requires file download
-                        unique_filename = f"{platform}_video_{uuid.uuid4().hex}.mp4"
-                        local_video_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
-                        
-                        # Download video from Google Drive for YouTube
-                        logger.info(f"Downloading video from Google Drive for YouTube: {cleaned_data['drive_link']}")
-                        download_success = drive_service.download_file_direct(cleaned_data['drive_link'], local_video_path)
-                        
-                        if not download_success:
-                            flash('Failed to download video from Google Drive. Make sure the link is public and accessible.', 'error')
-                            clients = auth_manager.get_all_clients()
-                            quota_status = {c['id']: youtube_service.get_quota_status(c['id']) for c in clients}
-                            return render_template('unified_upload.html', clients=clients, quota_status=quota_status, config=app.config)
-                    elif platform == 'instagram':
-                        # Instagram uses direct URL conversion (no file download needed)
-                        local_video_path = None
-                    
-                    # Upload based on platform
-                    if platform == 'youtube':
-                        # Prepare description with hashtags
-                        description = cleaned_data['description']
-                        if cleaned_data['hashtags']:
-                            hashtag_text = ' '.join([f'#{tag}' for tag in cleaned_data['hashtags']])
-                            description += f'\n\n{hashtag_text}'
-                        
-                        # Upload to YouTube
-                        logger.info(f"Uploading video to YouTube with client {cleaned_data['client_id']}, channel {cleaned_data['channel_id']}")
-                        success, message, response = youtube_service.upload_video(
-                            video_path=local_video_path,
-                            title=cleaned_data['title'],
-                            description=description,
-                            tags=cleaned_data['hashtags'],
-                            privacy_status=cleaned_data['privacy'],
-                            channel_id=cleaned_data['channel_id'],
-                            client_id=cleaned_data['client_id']
-                        )
-                    elif platform == 'instagram':
-                        # Convert Google Drive link to direct download URL for Instagram
-                        logger.info(f"Converting Google Drive link for Instagram: {cleaned_data['drive_link']}")
-                        conversion_result = drive_service.convert_to_direct_link(cleaned_data['drive_link'])
-                        
-                        if not conversion_result['success']:
-                            flash(f'Failed to convert Google Drive link: {conversion_result.get("error", "Unknown error")}', 'error')
-                            clients = auth_manager.get_all_clients()
-                            quota_status = {c['id']: youtube_service.get_quota_status(c['id']) for c in clients}
-                            return render_template('unified_upload.html', clients=clients, quota_status=quota_status, config=app.config)
-                        
-                        direct_video_url = conversion_result['direct_link']
-                        logger.info(f"Converted to direct URL: {direct_video_url[:50]}...")
-                        
-                        # Prepare caption with hashtags
-                        caption = cleaned_data['caption']
-                        if cleaned_data['hashtags']:
-                            hashtag_text = ' '.join([f'#{tag}' for tag in cleaned_data['hashtags']])
-                            caption += f'\n\n{hashtag_text}'
-                        
-                        # Upload to Instagram using direct URL (no file download needed)
-                        logger.info(f"Uploading video to Instagram with client {cleaned_data['client_id']}, account {cleaned_data['account_id']}")
-                        success, message, response = instagram_service.upload_video(
-                            video_path=None,  # Not needed when using video_url
-                            caption=caption,
-                            hashtags=cleaned_data['hashtags'],
-                            account_id=cleaned_data['account_id'],
-                            client_id=cleaned_data['client_id'],
-                            video_url=direct_video_url
-                        )
-                    
-                    if success and response:
-                        if platform == 'youtube':
-                            video_id = response['id']
-                            video_url = f"https://www.youtube.com/watch?v={video_id}"
-                            
-                            # Get updated quota status
-                            updated_quota = youtube_service.get_quota_status(cleaned_data['client_id'])
-                            
-                            flash(f'Video uploaded to YouTube successfully! Video ID: {video_id}', 'success')
-                            return render_template('success.html', 
-                                                 platform='youtube',
-                                                 video_url=video_url, 
-                                                 video_id=video_id, 
-                                                 quota_status=updated_quota,
-                                                 client_name=next((c['name'] for c in available_clients if c['id'] == cleaned_data['client_id']), 'Unknown'),
-                                                 config=app.config)
-                        elif platform == 'instagram':
-                            flash(f'Video uploaded to Instagram successfully! {message}', 'success')
-                            return render_template('success.html',
-                                                 platform='instagram',
-                                                 message=message,
-                                                 client_name=next((c['name'] for c in available_clients if c['id'] == cleaned_data['client_id']), 'Unknown'),
-                                                 config=app.config)
-                    else:
-                        flash(f'Failed to upload video: {message}', 'error')
-                        clients = auth_manager.get_all_clients()
-                        quota_status = {c['id']: youtube_service.get_quota_status(c['id']) for c in clients}
-                        return render_template('unified_upload.html', clients=clients, quota_status=quota_status, config=app.config)
-                        
-                finally:
-                    # Clean up local file (only for YouTube uploads)
-                    if platform == 'youtube' and local_video_path and os.path.exists(local_video_path):
-                        try:
-                            os.remove(local_video_path)
-                            logger.info(f"Cleaned up temporary file: {local_video_path}")
-                        except Exception as e:
-                            logger.warning(f"Failed to clean up temporary file {local_video_path}: {e}")
-                    
-            except Exception as e:
-                logger.error(f"Unexpected error during upload: {e}")
-                flash(f'An unexpected error occurred: {str(e)}', 'error')
-                clients = auth_manager.get_all_clients()
-                quota_status = {c['id']: youtube_service.get_quota_status(c['id']) for c in clients}
-                return render_template('unified_upload.html', clients=clients, quota_status=quota_status, config=app.config)
-        
-        # GET request - show the form
-        try:
-            # Get available clients and their quota status for GET request
-            clients = auth_manager.get_all_clients()
-            if not clients:
-                flash('No clients configured. Please check your clients.json file.', 'error')
-                return render_template('unified_upload.html', clients=[], quota_status={}, config=app.config)
-            quota_status = {}
-            for client in clients:
-                quota_status[client['id']] = youtube_service.get_quota_status(client['id'])
-            return render_template('unified_upload.html', clients=clients, quota_status=quota_status, config=app.config)
-            
-        except Exception as e:
-            logger.error(f"Error loading main page: {e}")
-            flash(f'Error loading page: {str(e)}', 'error')
-            return render_template('unified_upload.html', clients=[], quota_status={}, config=app.config)
+# Home route - redirects to bulk uploader
+@app.route('/', methods=['GET'])
+def home():
+    """Home page - redirects to bulk uploader."""
+    return redirect(url_for('bulk_uploader'))
 
 @app.route('/api/channels/<client_id>')
 def get_channels_for_client(client_id):
@@ -1280,6 +987,8 @@ if app.config['ENABLE_DISCORD_JOB']:
         except Exception as e:
             logger.error(f"Error in nocap_job: {e}")
             return jsonify({"error": f"Internal server error: {str(e)}"}), 500
+
+
 
 @app.route('/auth/<client_id>')
 def auth_redirect(client_id):

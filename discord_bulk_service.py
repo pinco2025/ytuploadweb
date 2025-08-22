@@ -63,7 +63,7 @@ class DiscordBulkJobService:
         Create a new bulk job with the provided data.
         
         Args:
-            json_data: List of dictionaries with 'name' and 'message_link' keys
+            json_data: List of dictionaries, each with 'user', 'message_link', and 'background_audio' keys
             webhook_url: n8n webhook URL
             interval_minutes: Minutes between posts (default: 5)
             webhook_type: Type of webhook ('submit_job' or 'nocap_job')
@@ -73,20 +73,20 @@ class DiscordBulkJobService:
             Tuple of (success, message, job_id)
         """
         try:
-            # Validate JSON data
-            if not json_data or not isinstance(json_data, list):
-                return False, "Invalid JSON data format", ""
+            # Validate JSON data structure
+            if not json_data or not isinstance(json_data, list) or len(json_data) == 0:
+                return False, "Invalid JSON data format. Expected a non-empty array of video objects.", ""
             
-            # Validate each item in the JSON data
+            # Validate each video item in the array
             for i, item in enumerate(json_data):
                 if not isinstance(item, dict):
-                    return False, f"Item {i} is not a valid object", ""
+                    return False, f"Video item {i} is not a valid object", ""
                 
-                if 'name' not in item or 'message_link' not in item:
-                    return False, f"Item {i} missing required 'name' or 'message_link' field", ""
+                if 'user' not in item or 'message_link' not in item or 'background_audio' not in item:
+                    return False, f"Video item {i} missing required 'user', 'message_link', or 'background_audio' field", ""
                 
-                if not item['name'] or not item['message_link']:
-                    return False, f"Item {i} has empty name or message_link", ""
+                if not item['user'] or not item['message_link'] or not item['background_audio']:
+                    return False, f"Video item {i} has empty user, message_link, or background_audio", ""
             
             # Validate webhook URL
             if not webhook_url:
@@ -102,7 +102,7 @@ class DiscordBulkJobService:
             # Create job data
             job_data = {
                 'id': job_id,
-                'data': json_data,
+                'data': json_data,  # Store the entire array
                 'webhook_url': webhook_url,
                 'webhook_type': webhook_type,
                 'interval_minutes': interval_minutes,
@@ -171,12 +171,13 @@ class DiscordBulkJobService:
                                 job_data['errors'].append(f"Failed to extract attachments from message {i+1}: {str(e)}")
                         continue
                     
-                    # Create payload for n8n webhook (same format as single Discord jobs)
+                    # Create payload for n8n webhook with background_audio from each video object
                     n8n_payload = {
                         'audios': attachments['audios'],
                         'images': attachments['images'],
+                        'background_audio': item['background_audio'],  # Use background_audio from each video object
                         'job_type': job_data['webhook_type'],
-                        'user': item['name'],
+                        'user': item['user'],
                         'channel_name': job_data.get('channel_name')
                     }
                     
@@ -281,8 +282,9 @@ class DiscordBulkJobService:
             data = resp.json()
             attachments = data.get('attachments', [])
             
+            # Require exactly 8 attachments (4 audio + 4 images)
             if len(attachments) != 8:
-                raise Exception(f"Message must have exactly 8 attachments, found {len(attachments)}")
+                raise Exception(f"Message must have exactly 8 attachments (4 audio + 4 images), found {len(attachments)}")
             
             # Separate audio and image files by extension
             audio_exts = {'.mp3', '.wav', '.m4a', '.aac', '.mp4'}
@@ -294,10 +296,11 @@ class DiscordBulkJobService:
             audios = [a['url'] for a in audios_full]
             images = [a['url'] for a in images_full]
             
+            # Validate we have exactly 4 audio and 4 image files
             if len(audios) != 4 or len(images) != 4:
-                raise Exception(f"Message must have 4 audio and 4 image files. Found {len(audios)} audio and {len(images)} images")
+                raise Exception(f"Message must have exactly 4 audio and 4 image files. Found {len(audios)} audio and {len(images)} images")
             
-            # Reverse the order of images and audios as they appear in the message
+            # Reverse both arrays for consistency (like standard jobs)
             images = images[::-1]
             audios = audios[::-1]
             

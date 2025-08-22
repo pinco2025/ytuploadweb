@@ -2,17 +2,19 @@
 
 ## 📋 JSON Format
 
-Your JSON file should contain an array of objects with the following format:
+Your JSON file should contain an array of video objects. Each video object must have a `user`, `message_link`, and `background_audio` field:
 
 ```json
 [
   {
-    "name": "Job 1 - Amazing Video Tutorial",
-    "message_link": "https://discord.com/channels/123456789012345678/987654321098765432/111222333444555666"
+    "user": "Job 1 - Amazing Video Tutorial",
+    "message_link": "https://discord.com/channels/123456789012345678/987654321098765432/111222333444555666",
+    "background_audio": "https://example.com/background1.mp3"
   },
   {
-    "name": "Job 2 - Incredible Content Episode", 
-    "message_link": "https://discord.com/channels/123456789012345678/987654321098765432/777888999000111222"
+    "user": "Job 2 - Incredible Content Episode", 
+    "message_link": "https://discord.com/channels/123456789012345678/987654321098765432/777888999000111222",
+    "background_audio": "https://example.com/background2.mp3"
   }
 ]
 ```
@@ -21,9 +23,12 @@ Your JSON file should contain an array of objects with the following format:
 
 ### JSON File Requirements:
 - **File format**: Must be valid JSON
-- **Array structure**: Must be an array of objects
-- **Required fields**: Each object must have `name` and `message_link`
-- **No empty values**: Both `name` and `message_link` cannot be empty
+- **Array structure**: Must be an array of video objects
+- **Required fields for each video**: 
+  - `user`: Name/title of the video job
+  - `message_link`: Discord message link with 8 attachments
+  - `background_audio`: URL to the background audio file for this specific video
+- **No empty values**: All fields must have content
 
 ### Discord Message Requirements:
 - **Message link format**: Must be a valid Discord message URL
@@ -37,6 +42,7 @@ Your JSON file should contain an array of objects with the following format:
 - **4 audio files** with extensions: `.mp3`, `.wav`, `.m4a`, `.aac`, `.mp4`
 - **4 image files** with extensions: `.jpg`, `.jpeg`, `.png`, `.webp`
 - **File order**: Attachments will be processed in reverse order (last attachment first)
+- **Background audio**: Will be extracted from each video object in the JSON and used individually for each video
 
 ## 🚀 How to Use
 
@@ -50,12 +56,14 @@ Your JSON file should contain an array of objects with the following format:
 ```json
 [
   {
-    "name": "My First Job",
-    "message_link": "https://discord.com/channels/YOUR_GUILD_ID/YOUR_CHANNEL_ID/YOUR_MESSAGE_ID"
+    "user": "My First Job",
+    "message_link": "https://discord.com/channels/YOUR_GUILD_ID/YOUR_CHANNEL_ID/YOUR_MESSAGE_ID",
+    "background_audio": "https://example.com/your-background-music1.mp3"
   },
   {
-    "name": "My Second Job",
-    "message_link": "https://discord.com/channels/YOUR_GUILD_ID/YOUR_CHANNEL_ID/YOUR_MESSAGE_ID_2"
+    "user": "My Second Job",
+    "message_link": "https://discord.com/channels/YOUR_GUILD_ID/YOUR_CHANNEL_ID/YOUR_MESSAGE_ID_2",
+    "background_audio": "https://example.com/your-background-music2.mp3"
   }
 ]
 ```
@@ -74,32 +82,35 @@ Your JSON file should contain an array of objects with the following format:
 
 ### Processing Flow:
 1. **Reads JSON file** and validates format
-2. **For each message link**:
-   - Fetches Discord message via Discord API
-   - Extracts 8 attachments
+2. **For each video object in the array**:
+   - Extracts `user`, `message_link`, and `background_audio` from JSON
+   - Fetches Discord message via Discord API using `message_link`
+   - Extracts 8 attachments (4 audio + 4 images)
    - Separates into 4 audio and 4 image files
    - Reverses the order (like single Discord jobs)
-   - Creates n8n payload
+   - Creates n8n payload with individual background_audio for each video
    - Posts to selected webhook
    - Waits for specified interval
-   - Continues to next message
+   - Continues to next video
 
 ### n8n Payload Format:
 ```json
 {
   "audios": ["audio1.mp3", "audio2.mp3", "audio3.mp3", "audio4.mp3"],
   "images": ["image1.jpg", "image2.jpg", "image3.jpg", "image4.jpg"],
+  "background_audio": "https://example.com/background-music1.mp3",
   "job_type": "submit_job",
-  "user": "Job Name"
+  "user": "Job Name",
+  "channel_name": "Channel Name"
 }
 ```
 
 ## ⚠️ Common Issues
 
 ### JSON Format Errors:
-- **Missing fields**: Ensure each object has `name` and `message_link`
+- **Missing fields**: Ensure each video object has `user`, `message_link`, and `background_audio`
 - **Invalid JSON**: Check for proper JSON syntax
-- **Empty values**: Both fields must have content
+- **Empty values**: All fields must have content
 
 ### Discord Message Errors:
 - **Invalid message link**: Must be a valid Discord message URL

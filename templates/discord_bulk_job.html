@@ -2,11 +2,7 @@
 {% block title %}Discord Bulk Job{% endblock %}
 {% block content %}
 <div class="container mt-4">
-    <div class="mb-4 text-end">
-        <a href="/discord-job" class="btn btn-primary">
-            <i class="fas fa-arrow-left me-2"></i>Back to Discord Job
-        </a>
-    </div>
+
     <div class="row justify-content-center">
         <div class="col-lg-10">
             <div class="card">
@@ -37,18 +33,11 @@
                                 <option value="">Select webhook type...</option>
                                 <option value="submit_job">Submit Job</option>
                                 <option value="nocap_job">No Cap Job</option>
-                                <option value="custom">Custom Webhook URL</option>
                             </select>
-                            <div class="form-text">Choose from n8n webhooks or use a custom URL</div>
+                            <div class="form-text">Choose from n8n webhooks</div>
                         </div>
                         
-                        <div class="mb-3" id="custom_webhook_div" style="display: none;">
-                            <label for="webhook_url" class="form-label">
-                                <i class="fas fa-link me-1"></i>Custom Discord Webhook URL
-                            </label>
-                            <input type="url" class="form-control" id="webhook_url" name="webhook_url" placeholder="https://discord.com/api/webhooks/...">
-                            <div class="validation-error" id="webhook_url_error"></div>
-                        </div>
+
                         
                         <div class="mb-3">
                             <label for="channel_name" class="form-label">
@@ -195,21 +184,20 @@ document.addEventListener('DOMContentLoaded', function() {
 // Handle webhook type selection
 document.getElementById('webhook_type').addEventListener('change', function() {
     const webhookType = this.value;
-    const customWebhookDiv = document.getElementById('custom_webhook_div');
-    const webhookUrlInput = document.getElementById('webhook_url');
     
-    if (webhookType === 'custom') {
-        customWebhookDiv.style.display = 'block';
-        webhookUrlInput.required = true;
-    } else if (webhookType === 'submit_job' || webhookType === 'nocap_job') {
-        customWebhookDiv.style.display = 'none';
-        webhookUrlInput.required = false;
+    if (webhookType === 'submit_job' || webhookType === 'nocap_job') {
         // Load webhook URL from n8n config
         loadWebhookUrl(webhookType);
     } else {
-        customWebhookDiv.style.display = 'none';
-        webhookUrlInput.required = false;
-        webhookUrlInput.value = '';
+        // Clear any previous webhook URL
+        let hiddenField = document.getElementById('selected_webhook_url');
+        if (hiddenField) {
+            hiddenField.remove();
+        }
+        
+        // Clear status area
+        const statusArea = document.getElementById('statusArea');
+        statusArea.innerHTML = '';
     }
 });
 
@@ -261,7 +249,10 @@ fetch('/static/js/discord_channels.json')
     .then(response => response.json())
     .then(data => {
         const dropdown = document.getElementById('channel_name');
-        if (Array.isArray(data.channels)) {
+        if (dropdown && Array.isArray(data.channels)) {
+            // Clear existing options first
+            dropdown.innerHTML = '<option value="">Select a channel...</option>';
+            
             data.channels.forEach(name => {
                 const opt = document.createElement('option');
                 opt.value = name;
@@ -269,6 +260,9 @@ fetch('/static/js/discord_channels.json')
                 dropdown.appendChild(opt);
             });
         }
+    })
+    .catch(error => {
+        console.error('Error loading channel names:', error);
     });
 
 document.getElementById('discordBulkJobForm').addEventListener('submit', function(e) {
@@ -281,7 +275,6 @@ document.getElementById('discordBulkJobForm').addEventListener('submit', functio
     
     // Clear previous errors
     document.getElementById('json_file_error').textContent = '';
-    document.getElementById('webhook_url_error').textContent = '';
     statusArea.innerHTML = '';
     
     // Validate webhook selection
@@ -291,13 +284,10 @@ document.getElementById('discordBulkJobForm').addEventListener('submit', functio
         return;
     }
     
-    // Validate custom webhook URL if selected
-    if (webhookType === 'custom') {
-        var webhookUrl = document.getElementById('webhook_url').value;
-        if (!webhookUrl || !webhookUrl.startsWith('https://discord.com/api/webhooks/')) {
-            document.getElementById('webhook_url_error').textContent = 'Please enter a valid Discord webhook URL';
-            return;
-        }
+    // Ensure webhook type is valid
+    if (webhookType !== 'submit_job' && webhookType !== 'nocap_job') {
+        showError('Please select a valid webhook type');
+        return;
     }
 
     var channelName = document.getElementById('channel_name').value;

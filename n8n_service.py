@@ -78,15 +78,28 @@ class N8nService:
             return False, "n8n webhook URL not configured", None
             
         try:
+            # Validate that we have exactly 4 images and 5 audio files
+            if len(images) != 4:
+                return False, f"Expected 4 images, got {len(images)}", None
+                
+            if len(audios) != 5:
+                return False, f"Expected 5 audio files, got {len(audios)}", None
+            
+            # Separate the last audio as background_audio
+            background_audio = audios[-1]
+            audio_files = audios[:-1]  # First 4 audio files
+            
             payload = {
                 "user": user,
                 "images": images,
-                "audios": audios
+                "audios": audio_files,
+                "background_audio": background_audio
             }
             
             logger.info(f"Submitting job for user: {user}")
             logger.info(f"Images: {images}")
-            logger.info(f"Audios: {audios}")
+            logger.info(f"Audios: {audio_files}")
+            logger.info(f"Background audio: {background_audio}")
             
             response = requests.post(
                 self.submit_webhook_url,
