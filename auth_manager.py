@@ -112,19 +112,29 @@ class AuthManager:
                 
                 # Check if credentials need refresh
                 if creds and not creds.valid:
-                    if creds.expired and creds.refresh_token:
-                        try:
-                            creds.refresh(Request())
-                            logger.info(f"Refreshed token for client {client_id}")
-                        except Exception as e:
-                            logger.warning(f"Failed to refresh token for {client_id}: {e}")
-                            creds = None
-                    else:
-                        creds = None
+                     if creds.expired and creds.refresh_token:
+                         try:
+                             creds.refresh(Request())
+                             logger.info(f"Refreshed token for client {client_id}")
+                             
+                             # Save the refreshed token
+                             with open(token_path, 'wb') as token_file:
+                                 pickle.dump(creds, token_file)
+                         except Exception as e:
+                             logger.warning(f"Failed to refresh token for {client_id}: {e}")
+                             # Remove the invalid token file
+                             try:
+                                 os.remove(token_path)
+                                 logger.info(f"Removed invalid token file for client {client_id}")
+                             except:
+                                 pass
+                             creds = None
+                     else:
+                         creds = None
                 
                 # If no valid credentials, authenticate
                 if not creds:
-                    raise AuthRequired(f"Authentication required for client {client_id}")
+                    raise AuthRequired(f"Please authenticate client {client_id} by clicking the 'Authenticate' button")
                 
                 self.active_client_id = client_id
                 return True, f"Successfully authenticated client {client_id}"
@@ -175,10 +185,36 @@ class AuthManager:
         except HttpError as e:
             error_msg = f"YouTube API error: {e.resp.status} - {e.content}"
             logger.error(error_msg)
+            
+            # Check if it's an authentication error
+            if 'invalid_grant' in str(e.content) or 'Bad Request' in str(e.content):
+                # Remove the invalid token file
+                token_path = self._get_token_path(client_id)
+                try:
+                    if os.path.exists(token_path):
+                        os.remove(token_path)
+                        logger.info(f"Removed invalid token file for client {client_id}")
+                except:
+                    pass
+                return [], "Authentication token is invalid. Please re-authenticate."
+            
             return [], error_msg
         except Exception as e:
             error_msg = f"Error getting channels: {str(e)}"
             logger.error(error_msg)
+            
+            # Check if it's an authentication error
+            if 'invalid_grant' in str(e) or 'Bad Request' in str(e):
+                # Remove the invalid token file
+                token_path = self._get_token_path(client_id)
+                try:
+                    if os.path.exists(token_path):
+                        os.remove(token_path)
+                        logger.info(f"Removed invalid token file for client {client_id}")
+                except:
+                    pass
+                return [], "Authentication token is invalid. Please re-authenticate."
+            
             return [], error_msg
     
     def switch_client(self, client_id: str) -> Tuple[bool, str]:
@@ -325,7 +361,76 @@ class AuthManager:
             'usage_percentage': (quota_data['used_quota'] / quota_data['daily_quota']) * 100,
             'last_reset': quota_data['last_reset'],
             'operations': quota_data['operations']
-        } 
+        }
+
+    def check_token_status(self, client_id: str) -> Tuple[bool, str, bool]:
+        """Check if a client has a valid token. Returns (has_token, message, needs_auth)."""
+        try:
+            client = self.get_client_by_id(client_id)
+            if not client:
+                return False, "Client not found", False
+            
+            client_type = client.get('type', 'youtube')
+            
+            if client_type == 'instagram':
+                # Check Instagram token using Instagram service for better verification
+                try:
+                    from instagram_service import InstagramService
+                    instagram_service = InstagramService(self)
+                    is_valid, message = instagram_service.verify_token_status(client_id)
+                    return is_valid, message, not is_valid
+                except Exception as e:
+                    logger.warning(f"Failed to verify Instagram token using service: {e}")
+                    # Fallback to basic file check
+                    token_path = os.path.join(self.tokens_dir, f'instagram_token_{client_id}.json')
+                    if os.path.exists(token_path):
+                        try:
+                            with open(token_path, 'r') as f:
+                                token_data = json.load(f)
+                            if token_data.get('access_token'):
+                                return True, "Instagram token found", False
+                        except Exception as e:
+                            logger.warning(f"Failed to load Instagram token for {client_id}: {e}")
+                    
+                    return False, "Instagram authentication required", True
+            
+            else:
+                # Check YouTube token
+                token_path = self._get_token_path(client_id)
+                if not os.path.exists(token_path):
+                    return False, "No token found for this client", True
+                
+                try:
+                    with open(token_path, 'rb') as token:
+                        creds = pickle.load(token)
+                    
+                    if creds.valid:
+                        return True, "Token is valid", False
+                    
+                    if creds.expired and creds.refresh_token:
+                        try:
+                            from google.auth.transport.requests import Request
+                            creds.refresh(Request())
+                            
+                            # Save refreshed token
+                            with open(token_path, 'wb') as token_file:
+                                pickle.dump(creds, token_file)
+                            
+                            logger.info(f"Successfully refreshed token for client {client_id}")
+                            return True, "Token refreshed successfully", False
+                        except Exception as e:
+                            logger.warning(f"Failed to refresh token for {client_id}: {e}")
+                            return False, "Token expired and cannot be refreshed", True
+                    else:
+                        return False, "Token is invalid and cannot be refreshed", True
+                        
+                except Exception as e:
+                    logger.error(f"Error checking token for client {client_id}: {e}")
+                    return False, f"Error checking token: {str(e)}", True
+                    
+        except Exception as e:
+            logger.error(f"Error checking token status for client {client_id}: {e}")
+            return False, f"Error: {str(e)}", False 
 
     def generate_oauth_url(self, client_id: str) -> Tuple[bool, str]:
         """Generate and print an OAuth URL for manual authentication for a client. Returns (success, url or error)."""
@@ -351,14 +456,16 @@ class AuthManager:
             
             flow = InstalledAppFlow.from_client_config(
                 client_config,
-                scopes=scopes
+                scopes=scopes,
+                redirect_uri=Config.REDIRECT_URI
             )
             
-            # Generate authorization URL
+            # Generate authorization URL with state parameter for client identification
             auth_url, _ = flow.authorization_url(
                 access_type='offline',
                 prompt='consent',
-                include_granted_scopes='true'
+                include_granted_scopes='true',
+                state=client_id
             )
             
             # Display in terminal with formatting

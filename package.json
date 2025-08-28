@@ -1,0 +1,37 @@
+{
+  "name": "web-api-sys",
+  "version": "1.0.0",
+  "description": "A modern Flask web application for uploading videos to YouTube as Shorts and Instagram Reels, with Discord-based job submission, n8n integration, and robust multi-client support. Features a dark-themed navbar, modular navigation, and secure token handling.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pinco2025/ytuploadweb.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/pinco2025/ytuploadweb/issues"
+  },
+  "homepage": "https://github.com/pinco2025/ytuploadweb#readme",
+  "dependencies": {
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-router-dom": "^7.8.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.28.3",
+    "@babel/preset-env": "^7.28.3",
+    "@babel/preset-react": "^7.27.1",
+    "babel-loader": "^10.0.0",
+    "css-loader": "^7.1.2",
+    "html-webpack-plugin": "^5.6.4",
+    "style-loader": "^4.0.0",
+    "webpack": "^5.101.3",
+    "webpack-cli": "^6.0.1",
+    "webpack-dev-server": "^5.2.2"
+  }
+}

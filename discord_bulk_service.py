@@ -25,11 +25,15 @@ class DiscordBulkJobService:
         self.job_lock = threading.Lock()
         self.bot_token = os.environ.get('DISCORD_BOT_TOKEN')
         self._shutdown_event = threading.Event()
+        self._active_threads = set()  # Track active threads
         
         # Register cleanup handlers
         atexit.register(self._cleanup_on_exit)
-        signal.signal(signal.SIGINT, self._signal_handler)
-        signal.signal(signal.SIGTERM, self._signal_handler)
+        try:
+            signal.signal(signal.SIGINT, self._signal_handler)
+            signal.signal(signal.SIGTERM, self._signal_handler)
+        except Exception as e:
+            logger.warning(f"Could not register signal handlers: {e}")
         
     def _signal_handler(self, signum, frame):
         """Handle shutdown signals."""
@@ -40,6 +44,10 @@ class DiscordBulkJobService:
         """Clean up all active jobs when server shuts down."""
         try:
             logger.info("Cleaning up Discord bulk jobs on server shutdown...")
+            
+            # Set shutdown event to stop any running threads
+            self._shutdown_event.set()
+            
             with self.job_lock:
                 # Cancel all running jobs
                 for job_id, job_data in self.active_jobs.items():
@@ -50,12 +58,21 @@ class DiscordBulkJobService:
                 # Clear all jobs from memory
                 self.active_jobs.clear()
                 logger.info("All Discord bulk jobs cleaned up")
+            
+            # Wait for active threads to finish (with timeout)
+            if self._active_threads:
+                logger.info(f"Waiting for {len(self._active_threads)} active threads to finish...")
+                for thread in list(self._active_threads):
+                    if thread.is_alive():
+                        thread.join(timeout=5.0)  # Wait up to 5 seconds per thread
+                        if thread.is_alive():
+                            logger.warning(f"Thread {thread.name} did not finish within timeout")
+                
+                self._active_threads.clear()
+                logger.info("All threads cleaned up")
                 
         except Exception as e:
             logger.error(f"Error during cleanup: {e}")
-        
-        # Set shutdown event to stop any running threads
-        self._shutdown_event.set()
     
     def create_bulk_job(self, json_data: List[Dict], webhook_url: str, 
                         interval_minutes: int = 5, webhook_type: str = 'submit_job', channel_name: str = None) -> Tuple[bool, str, str]:
@@ -122,8 +139,9 @@ class DiscordBulkJobService:
                 self.active_jobs[job_id] = job_data
             
             # Start background processing
-            thread = threading.Thread(target=self._process_job, args=(job_id,))
+            thread = threading.Thread(target=self._process_job, args=(job_id,), name=f"discord_job_{job_id}")
             thread.daemon = True
+            self._active_threads.add(thread)
             thread.start()
             
             logger.info(f"Created bulk job {job_id} with {len(json_data)} items")
@@ -234,6 +252,11 @@ class DiscordBulkJobService:
                 if job_id in self.active_jobs:
                     job_data['status'] = 'error'
                     job_data['errors'].append(f"Job processing error: {str(e)}")
+        finally:
+            # Clean up thread reference
+            current_thread = threading.current_thread()
+            if current_thread in self._active_threads:
+                self._active_threads.remove(current_thread)
     
     def _post_to_n8n_webhook(self, webhook_url: str, payload: Dict, item_name: str) -> bool:
         """Post payload to n8n webhook."""

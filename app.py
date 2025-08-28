@@ -107,6 +107,30 @@ def cleanup_on_flask_shutdown():
     except Exception as e:
         logger.error(f"Error during Flask shutdown cleanup: {e}")
 
+# Flask before first request handler
+@app.before_first_request
+def setup_app():
+    """Setup before first request."""
+    logger.info("Flask app starting up...")
+
+# Flask shutdown event handler
+@app.teardown_appcontext
+def cleanup_on_request_end(exception=None):
+    """Clean up after each request ends."""
+    pass  # This is just a placeholder for now
+
+# Register a function to be called when the Flask app context is torn down
+def cleanup_on_app_shutdown():
+    """Clean up when Flask app shuts down."""
+    try:
+        logger.info("Flask app context tearing down, cleaning up...")
+        discord_bulk_service._cleanup_on_exit()
+    except Exception as e:
+        logger.error(f"Error during Flask app shutdown cleanup: {e}")
+
+# Register the cleanup function
+atexit.register(cleanup_on_app_shutdown)
+
 # --- Discord single job functionality has been removed ---
 # Only Discord bulk job functionality remains
 
@@ -423,6 +447,75 @@ def switch_channel(client_id, channel_id):
         
     except Exception as e:
         logger.error(f"Error switching to channel {channel_id} for client {client_id}: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        })
+
+@app.route('/api/verify-token/<client_id>')
+def verify_token(client_id):
+    """API endpoint to verify and refresh token for a client if needed."""
+    try:
+        # Validate client ID
+        available_clients = auth_manager.get_all_clients()
+        is_valid, error_msg = InputValidator.validate_client_id(client_id, available_clients)
+        if not is_valid:
+            return jsonify({
+                "success": False,
+                "error": error_msg,
+                "needs_auth": False
+            })
+        
+        # Get client info
+        client = auth_manager.get_client_by_id(client_id)
+        if not client:
+            return jsonify({
+                "success": False,
+                "error": "Client not found",
+                "needs_auth": False
+            })
+        
+        # Use the new check_token_status method
+        has_token, message, needs_auth = auth_manager.check_token_status(client_id)
+        
+        return jsonify({
+            "success": has_token,
+            "message": message,
+            "needs_auth": needs_auth,
+            "client_type": client.get('type', 'youtube')
+        })
+        
+    except Exception as e:
+        logger.error(f"Error verifying token for client {client_id}: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "needs_auth": False
+        })
+
+@app.route('/api/generate-oauth-url/<client_id>')
+def generate_oauth_url(client_id):
+    """API endpoint to generate OAuth URL for client authentication."""
+    try:
+        # Validate client ID
+        available_clients = auth_manager.get_all_clients()
+        is_valid, error_msg = InputValidator.validate_client_id(client_id, available_clients)
+        if not is_valid:
+            return jsonify({
+                "success": False,
+                "error": error_msg
+            })
+        
+        success, url_or_error = auth_manager.generate_oauth_url(client_id)
+        
+        return jsonify({
+            "success": success,
+            "oauth_url": url_or_error if success else None,
+            "error": None if success else url_or_error
+        })
+        
+    except Exception as e:
+        logger.error(f"Error generating OAuth URL for client {client_id}: {e}")
         return jsonify({
             "success": False,
             "error": str(e)
@@ -1476,5 +1569,38 @@ def bulk_uploader_result(request_id):
     return render_template('bulk_uploader_result.html', results=results, config=app.config, service=service)
 
 if __name__ == '__main__':
+    import signal
+    import sys
+    
+    def signal_handler(signum, frame):
+        """Handle shutdown signals gracefully."""
+        logger.info(f"Received signal {signum}, shutting down gracefully...")
+        
+        # Clean up Discord bulk jobs
+        try:
+            discord_bulk_service._cleanup_on_exit()
+        except Exception as e:
+            logger.error(f"Error cleaning up Discord bulk jobs: {e}")
+        
+        # Clear uploads directory
+        try:
+            clear_uploads_dir()
+        except Exception as e:
+            logger.error(f"Error clearing uploads directory: {e}")
+        
+        logger.info("Shutdown complete. Exiting...")
+        sys.exit(0)
+    
+    # Register signal handlers
+    signal.signal(signal.SIGINT, signal_handler)   # Ctrl+C
+    signal.signal(signal.SIGTERM, signal_handler)  # Termination signal
+    
     logger.info("Starting YouTube Shorts Uploader...")
-    app.run(host='0.0.0.0', port=5000) 
+    try:
+        app.run(host='0.0.0.0', port=5000)
+    except KeyboardInterrupt:
+        logger.info("KeyboardInterrupt received, shutting down...")
+        signal_handler(signal.SIGINT, None)
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        signal_handler(signal.SIGTERM, None) 
