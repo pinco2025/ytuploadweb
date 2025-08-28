@@ -107,11 +107,14 @@ def cleanup_on_flask_shutdown():
     except Exception as e:
         logger.error(f"Error during Flask shutdown cleanup: {e}")
 
-# Flask before first request handler
-@app.before_first_request
+# Flask app startup setup
 def setup_app():
     """Setup before first request."""
     logger.info("Flask app starting up...")
+
+# Call setup function when app starts
+with app.app_context():
+    setup_app()
 
 # Flask shutdown event handler
 @app.teardown_appcontext
