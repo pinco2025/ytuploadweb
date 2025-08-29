@@ -664,6 +664,7 @@ input[type="checkbox"], input[type="radio"] {
   border-radius: 8px;
   overflow: hidden;
   box-shadow: var(--shadow-light);
+  color: var(--text-primary);
 }
 
 .table th {
@@ -677,14 +678,58 @@ input[type="checkbox"], input[type="radio"] {
   border-bottom: 2px solid var(--border-color);
 }
 
+/* Ensure table headers are always visible */
+.table thead th {
+  background: var(--text-primary) !important;
+  color: var(--background-color) !important;
+  border-color: var(--border-color) !important;
+}
+
 .table td {
   padding: 1rem;
   border-bottom: 1px solid var(--border-color);
-  color: var(--text-secondary);
+  color: var(--text-primary);
 }
 
 .table tbody tr:hover {
   background: var(--surface-color);
+}
+
+/* Dark theme table success and danger states */
+.table-success {
+  background: rgba(40, 167, 69, 0.1) !important;
+  border-color: var(--success-color) !important;
+}
+
+.table-success td {
+  color: var(--text-primary) !important;
+  background: rgba(40, 167, 69, 0.1) !important;
+}
+
+.table-danger {
+  background: rgba(220, 53, 69, 0.1) !important;
+  border-color: var(--error-color) !important;
+}
+
+.table-danger td {
+  color: var(--text-primary) !important;
+  background: rgba(220, 53, 69, 0.1) !important;
+}
+
+/* Ensure table text is always visible */
+.table tbody tr td {
+  color: var(--text-primary) !important;
+}
+
+/* Badge styling for dark theme */
+.badge.bg-success {
+  background: var(--success-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.badge.bg-danger {
+  background: var(--error-color) !important;
+  color: var(--text-primary) !important;
 }
 
 /* Navigation */

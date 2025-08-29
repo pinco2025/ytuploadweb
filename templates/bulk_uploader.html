@@ -514,24 +514,33 @@
       new bootstrap.Tooltip(tooltipTriggerEl);
     });
 
-    // Progress indicator for bulk upload
+    // Progress indicator for bulk upload - FIXED: Single event listener to prevent duplicate submissions
     const bulkUploaderForm = document.getElementById('bulkUploaderForm');
     const bulkUploadBtn = document.getElementById('bulkUploadBtn');
     const bulkUploadProgress = document.getElementById('bulkUploadProgress');
-    initBulkForm({
-        formId: 'bulkUploaderForm',
-        buttonId: 'bulkUploadBtn',
-        enabledClass: 'btn-primary',
-        disabledClass: 'btn-secondary',
-        spinnerHtml: '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Uploading...'
-    });
-    bulkUploaderForm.addEventListener('submit', function(){bulkUploadProgress.style.display='block'});
-    // Show toast on successful submission
+    
+    // Single event listener to handle all form submission logic
     if (bulkUploaderForm) {
         bulkUploaderForm.addEventListener('submit', function(e) {
+            // Prevent multiple submissions
+            if (bulkUploadBtn.disabled) {
+                e.preventDefault();
+                return false;
+            }
+            
+            // Disable button and show loading state
+            bulkUploadBtn.disabled = true;
+            bulkUploadBtn.classList.remove('btn-primary');
+            bulkUploadBtn.classList.add('btn-secondary');
+            bulkUploadBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Uploading...';
+            
+            // Show progress bar
+            bulkUploadProgress.style.display = 'block';
+            
+            // Show success toast after a delay
             setTimeout(function() {
                 showToast('Bulk upload submitted successfully!', 'success');
-            }, 500); // Show after progress bar appears
+            }, 500);
         });
     }
 

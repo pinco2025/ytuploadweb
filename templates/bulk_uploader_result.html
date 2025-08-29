@@ -11,8 +11,36 @@
                     </h2>
                 </div>
                 <div class="card-body">
+                    <!-- Summary Statistics -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="stats-card">
+                                <h3>{{ results|length }}</h3>
+                                <h6>Total Files</h6>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stats-card">
+                                <h3>{{ results|selectattr('success', 'equalto', true)|list|length }}</h3>
+                                <h6>Successful Uploads</h6>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stats-card">
+                                <h3>{{ results|selectattr('success', 'equalto', false)|list|length }}</h3>
+                                <h6>Failed Uploads</h6>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stats-card">
+                                <h3>{{ service|upper }}</h3>
+                                <h6>Platform</h6>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <table class="table table-bordered table-hover">
-                        <thead class="table-light">
+                        <thead>
                             <tr>
                                 <th>#</th>
                                 <th>Service</th>
@@ -25,19 +53,28 @@
                         <tbody>
                             {% for result in results %}
                             <tr class="{% if result.success %}table-success{% else %}table-danger{% endif %}">
-                                <td>{{ loop.index }}</td>
-                                <td>{{ service|capitalize }}</td>
-                                <td style="word-break: break-all;">{{ result.link }}</td>
+                                <td class="fw-bold">{{ loop.index }}</td>
+                                <td>
+                                    {% if service == 'youtube' %}
+                                        <i class="fab fa-youtube text-danger me-1"></i>
+                                    {% elif service == 'instagram' %}
+                                        <i class="fab fa-instagram text-warning me-1"></i>
+                                    {% endif %}
+                                    {{ service|capitalize }}
+                                </td>
+                                <td style="word-break: break-all; font-family: monospace; font-size: 0.875rem;">{{ result.link }}</td>
                                 <td style="word-break: break-all;">{{ result.filename or '-' }}</td>
                                 <td>
                                     {% if result.success %}
-                                        <span class="badge bg-success">Success</span>
+                                        <span class="badge bg-success">✅ Success</span>
                                     {% else %}
-                                        <span class="badge bg-danger">Failed</span>
+                                        <span class="badge bg-danger">❌ Failed</span>
                                     {% endif %}
                                 </td>
-                                <td>
-                                    {{ result.message or result.error }}
+                                <td style="max-width: 300px;">
+                                    <div style="word-break: break-word;">
+                                        {{ result.message or result.error }}
+                                    </div>
                                 </td>
                             </tr>
                             {% endfor %}

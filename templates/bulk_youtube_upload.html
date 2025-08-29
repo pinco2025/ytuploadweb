@@ -87,12 +87,24 @@
             });
     });
 
-    initBulkForm({
-        formId: 'bulkYouTubeForm',
-        buttonId: 'bulkSubmitBtn',
-        enabledClass: 'btn-danger',
-        disabledClass: 'btn-secondary',
-        spinnerHtml: '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Uploading...'
-    });
+    // Single event listener to prevent duplicate submissions
+    const bulkYouTubeForm = document.getElementById('bulkYouTubeForm');
+    const bulkSubmitBtn = document.getElementById('bulkSubmitBtn');
+    
+    if (bulkYouTubeForm) {
+        bulkYouTubeForm.addEventListener('submit', function(e) {
+            // Prevent multiple submissions
+            if (bulkSubmitBtn.disabled) {
+                e.preventDefault();
+                return false;
+            }
+            
+            // Disable button and show loading state
+            bulkSubmitBtn.disabled = true;
+            bulkSubmitBtn.classList.remove('btn-danger');
+            bulkSubmitBtn.classList.add('btn-secondary');
+            bulkSubmitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Uploading...';
+        });
+    }
 </script>
 {% endblock %} 
