@@ -1327,136 +1327,8 @@ def clear_bulk_instagram_uploads():
         logger.error(f'Error clearing bulk uploads: {e}')
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/bulk-youtube-upload', methods=['GET', 'POST'])
-def bulk_youtube_upload():
-    """Bulk upload videos to YouTube from multiple Google Drive links (max 10)."""
-    if request.method == 'GET':
-        clients = [c for c in auth_manager.get_all_clients() if c.get('type') != 'instagram']
-        return render_template('bulk_youtube_upload.html', clients=clients, config=app.config)
-
-    # POST: process bulk upload
-    request_id = uuid.uuid4().hex[:8]
-    
-    # Safeguard against duplicate processing
-    if request_id in ACTIVE_BULK_REQUESTS:
-        logger.warning(f"[YOUTUBE BULK] Request {request_id} already in progress, rejecting duplicate")
-        return render_template('bulk_youtube_upload.html', clients=[c for c in auth_manager.get_all_clients() if c.get('type') != 'instagram'], config=app.config, error='A bulk upload is already in progress. Please wait for it to complete.')
-    
-    ACTIVE_BULK_REQUESTS.add(request_id)
-    logger.info(f"[YOUTUBE BULK] Request {request_id} started")
-    links_raw = request.form.get('drive_links', '')
-    client_id = request.form.get('client_id', '')
-    channel_id = request.form.get('channel_id', '')
-    
-    # Improved link parsing with deduplication
-    raw_links = [l.strip() for l in re.split(r'[\n,]+', links_raw) if l.strip()]
-    # Remove duplicates while preserving order
-    seen = set()
-    links = []
-    for link in raw_links:
-        if link not in seen:
-            seen.add(link)
-            links.append(link)
-    
-    logger.info(f"[YOUTUBE BULK] Request {request_id}: Parsed {len(raw_links)} raw links, {len(links)} unique links")
-    logger.info(f"[YOUTUBE BULK] Request {request_id}: Links: {links}")
-    # Early quota check
-    quota_status = youtube_service.get_quota_status(client_id)
-    remaining = quota_status.get('remaining_quota', 0)
-    total_cost = len(links)*1600
-    if remaining < total_cost:
-        ACTIVE_BULK_REQUESTS.discard(request_id)
-        return render_template('bulk_youtube_upload.html', clients=[c for c in auth_manager.get_all_clients() if c.get('type') != 'instagram'], config=app.config, error=f"Insufficient quota. Needed {total_cost}, remaining {remaining}.")
-    if len(links) > 10:
-        ACTIVE_BULK_REQUESTS.discard(request_id)
-        return render_template('bulk_youtube_upload.html', clients=[c for c in auth_manager.get_all_clients() if c.get('type') != 'instagram'], config=app.config, error='You can only upload up to 10 videos at a time.')
-    results = []
-    for i, link in enumerate(links, 1):
-        logger.info(f"[YOUTUBE BULK] Request {request_id}: Processing link {i}/{len(links)}: {link}")
-        
-        # 1. Convert to direct link
-        conversion_result = drive_service.convert_to_direct_link(link)
-        if not conversion_result['success']:
-            logger.error(f"[YOUTUBE BULK] Request {request_id}: Link {i} conversion failed: {conversion_result.get('error', 'Unknown error')}")
-            results.append({'link': link, 'success': False, 'error': f"Drive link conversion failed: {conversion_result.get('error', 'Unknown error')}"})
-            continue
-        direct_link = conversion_result['direct_link']
-        
-        # 2. Extract filename for Gemini
-        file_info = drive_service.get_file_info(link)
-        filename = file_info['name'] if file_info and 'name' in file_info else link.split('/')[-1]
-        logger.info(f"[YOUTUBE BULK] Request {request_id}: Link {i} filename: {filename}")
-        
-        # 3. Download video to local file (skip if testing)
-        unique_filename = f"youtube_video_{uuid.uuid4().hex}.mp4"
-        local_video_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
-        if not TESTING_BULK_UPLOAD:
-            logger.info(f"[YOUTUBE BULK] Request {request_id}: Link {i} downloading to {local_video_path}")
-            download_success = drive_service.download_file_direct(link, local_video_path)
-            if not download_success:
-                logger.error(f"[YOUTUBE BULK] Request {request_id}: Link {i} download failed")
-                results.append({'link': link, 'success': False, 'error': 'Failed to download video from Google Drive. Make sure the link is public and accessible.', 'filename': filename})
-                continue
-        # 4. Generate content with Gemini (skip if testing)
-        if TESTING_BULK_UPLOAD:
-            title = f'[TEST MODE] Title for {filename}'
-            description = f'[TEST MODE] Description for {filename}'
-            hashtags = ['#test', '#bulk', '#upload']
-        elif gemini_service:
-            gemini_content = gemini_service.generate_content(filename, platform='youtube')
-            if not gemini_content.get('success', True):
-                results.append({'link': link, 'success': False, 'error': f"Gemini error: {gemini_content.get('error', 'Unknown error')}", 'filename': filename})
-                try:
-                    if os.path.exists(local_video_path):
-                        os.remove(local_video_path)
-                except Exception:
-                    pass
-                continue
-            title = gemini_content.get('title', '')
-            description = gemini_content.get('description', '')
-            hashtags = gemini_content.get('hashtags', '').split()
-        else:
-            title = filename
-            description = filename
-            hashtags = []
-        # Fix: Strip '#' for tags, add hashtags to description
-        tags = [tag.lstrip('#') for tag in hashtags]
-        if tags:
-            hashtag_text = ' '.join([f'#{tag}' for tag in tags])
-            description += f'\n\n{hashtag_text}'
-        # 5. Upload to YouTube (skip if testing)
-        if TESTING_BULK_UPLOAD:
-            success, message, response = True, '[TEST MODE] Upload skipped', None
-            logger.info(f"[YOUTUBE BULK] Request {request_id}: Link {i} TEST MODE - upload skipped")
-        else:
-            logger.info(f"[YOUTUBE BULK] Request {request_id}: Link {i} starting upload with title: {title}")
-            success, message, response = youtube_service.upload_video(
-                video_path=local_video_path,
-                title=title,
-                description=description,
-                tags=tags,
-                privacy_status='public',
-                channel_id=channel_id,
-                client_id=client_id
-            )
-            logger.info(f"[YOUTUBE BULK] Request {request_id}: Link {i} upload result - success: {success}, message: {message}")
-        
-        # 6. Clean up local file
-        try:
-            if not TESTING_BULK_UPLOAD and os.path.exists(local_video_path):
-                os.remove(local_video_path)
-                logger.info(f"[YOUTUBE BULK] Request {request_id}: Link {i} cleaned up local file")
-        except Exception as e:
-            logger.warning(f"[YOUTUBE BULK] Request {request_id}: Link {i} failed to clean up local file: {e}")
-        
-        results.append({'link': link, 'success': success, 'message': message, 'response': response, 'filename': filename})
-    
-    # Clean up active request tracking
-    ACTIVE_BULK_REQUESTS.discard(request_id)
-    logger.info(f"[YOUTUBE BULK] Request {request_id} completed, processed {len(links)} links")
-    
-    BULK_RESULTS[request_id] = results
-    return redirect(url_for('bulk_youtube_result', request_id=request_id))
+# Legacy bulk-youtube-upload route removed to prevent duplicate uploads
+# All YouTube bulk uploads now handled by the unified /bulk-uploader endpoint
 
 # Result routes for POST-Redirect-GET
 
@@ -1469,13 +1341,7 @@ def bulk_instagram_result(request_id):
     return render_template('bulk_instagram_result.html', results=results, config=app.config)
 
 
-@app.route('/bulk-youtube-result/<request_id>')
-def bulk_youtube_result(request_id):
-    results = BULK_RESULTS.pop(request_id, None)
-    if results is None:
-        flash('Results expired or not found.', 'error')
-        return redirect(url_for('bulk_youtube_upload'))
-    return render_template('bulk_youtube_result.html', results=results, config=app.config)
+# Legacy bulk-youtube-result route removed - now handled by bulk_uploader_result
 
 @app.route('/bulk-uploader', methods=['GET', 'POST'])
 def bulk_uploader():
