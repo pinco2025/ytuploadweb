@@ -1,34 +1,26 @@
 # Discord Bulk Job Guide
 
-## 📋 JSON Format
+## 🧙‍♂️ Discord Bulk Job Wizard
 
-Your JSON file should contain an array of video objects. Each video object must have a `user`, `message_link`, and `background_audio` field:
+The Discord Bulk Job system features a **step-by-step wizard** that guides you through the entire process. This intuitive interface provides better validation and flexibility for creating bulk video jobs.
 
-```json
-[
-  {
-    "user": "Job 1 - Amazing Video Tutorial",
-    "message_link": "https://discord.com/channels/123456789012345678/987654321098765432/111222333444555666",
-    "background_audio": "https://example.com/background1.mp3"
-  },
-  {
-    "user": "Job 2 - Incredible Content Episode", 
-    "message_link": "https://discord.com/channels/123456789012345678/987654321098765432/777888999000111222",
-    "background_audio": "https://example.com/background2.mp3"
-  }
-]
-```
+### Wizard Workflow:
+1. **Setup** - Configure number of videos and webhook type
+2. **Titles** - Enter video titles (one per line)
+3. **Audio Set** - Provide Discord message links with 4 audio files each
+4. **Background Audio Set** - Provide direct URLs to background audio files (MP3, WAV, etc.)
+5. **Image Set** - Provide Discord message links with 4 image files each + select channel
+6. **Optional Second Image Set** - Reuse same audio with different images (optional)
+7. **Execute** - Set posting interval and start the job
+
+### Key Benefits:
+- ✅ **Real-time validation** at each step
+- ✅ **Flexible audio reuse** with multiple image sets
+- ✅ **Channel selection** for targeted content
+- ✅ **Live counters** to track your progress
+- ✅ **Intuitive interface** - no complex file formats required
 
 ## 🔧 Requirements
-
-### JSON File Requirements:
-- **File format**: Must be valid JSON
-- **Array structure**: Must be an array of video objects
-- **Required fields for each video**: 
-  - `user`: Name/title of the video job
-  - `message_link`: Discord message link with 8 attachments
-  - `background_audio`: URL to the background audio file for this specific video
-- **No empty values**: All fields must have content
 
 ### Discord Message Requirements:
 - **Message link format**: Must be a valid Discord message URL
@@ -38,90 +30,77 @@ Your JSON file should contain an array of video objects. Each video object must 
   - `discord://channels/guild_id/channel_id/message_id` (auto-converted)
 
 ### Discord Message Content Requirements:
-- **Exactly 8 attachments** per message
-- **4 audio files** with extensions: `.mp3`, `.wav`, `.m4a`, `.aac`, `.mp4`
-- **4 image files** with extensions: `.jpg`, `.jpeg`, `.png`, `.webp`
+- **Exactly 4 attachments** per message
+- **Audio messages**: 4 audio files with extensions: `.mp3`, `.wav`, `.m4a`, `.aac`, `.mp4`
+- **Image messages**: 4 image files with extensions: `.jpg`, `.jpeg`, `.png`, `.webp`
 - **File order**: Attachments will be processed in reverse order (last attachment first)
-- **Background audio**: Will be extracted from each video object in the JSON and used individually for each video
+
+### Background Audio Requirements:
+- **Direct URLs**: Must be direct links to audio files
+- **Supported formats**: MP3, WAV, M4A, AAC, OGG, FLAC
+- **Hosting services**: Google Drive, Dropbox, SoundCloud, OneDrive, etc.
 
 ## 🚀 How to Use
 
-### Step 1: Prepare Your Discord Messages
-1. **Create Discord messages** with exactly 8 attachments
-2. **Upload 4 audio files** (any supported format)
-3. **Upload 4 image files** (any supported format)
-4. **Copy the message link** (right-click message → Copy Message Link)
-
-### Step 2: Create Your JSON File
-```json
-[
-  {
-    "user": "My First Job",
-    "message_link": "https://discord.com/channels/YOUR_GUILD_ID/YOUR_CHANNEL_ID/YOUR_MESSAGE_ID",
-    "background_audio": "https://example.com/your-background-music1.mp3"
-  },
-  {
-    "user": "My Second Job",
-    "message_link": "https://discord.com/channels/YOUR_GUILD_ID/YOUR_CHANNEL_ID/YOUR_MESSAGE_ID_2",
-    "background_audio": "https://example.com/your-background-music2.mp3"
-  }
-]
-```
-
-### Step 3: Upload and Configure
 1. **Go to Discord Bulk Job** in the navigation
-2. **Upload your JSON file**
-3. **Select webhook type**:
-   - **Submit Job**: Uses n8n submit_job webhook
-   - **No Cap Job**: Uses n8n nocap_job webhook
-   - **Custom**: Enter your own Discord webhook URL
-4. **Set interval** (default: 5 minutes)
-5. **Click "Start Bulk Job"**
+2. **Follow the 7-step wizard**:
+   - **Step 1**: Set number of videos and webhook type
+   - **Step 2**: Enter video titles (one per line)
+   - **Step 3**: Add Discord message links with 4 audio files each
+   - **Step 4**: Add direct URLs to background audio files (MP3, WAV, etc.)
+   - **Step 5**: Add Discord message links with 4 image files each + select channel
+   - **Step 6**: Optionally add a second image set with different channel
+   - **Step 7**: Set posting interval and start the job
 
 ## 🔍 How It Works
 
 ### Processing Flow:
-1. **Reads JSON file** and validates format
-2. **For each video object in the array**:
-   - Extracts `user`, `message_link`, and `background_audio` from JSON
-   - Fetches Discord message via Discord API using `message_link`
-   - Extracts 8 attachments (4 audio + 4 images)
-   - Separates into 4 audio and 4 image files
-   - Reverses the order (like single Discord jobs)
-   - Creates n8n payload with individual background_audio for each video
+1. **Wizard collects** all required information step by step
+2. **For each video**:
+   - Gets title from step 2
+   - Fetches 4 audio files from Discord message (step 3)
+   - Gets background audio URL (step 4)
+   - Fetches 4 image files from Discord message (step 5)
+   - Reverses file order (last attachment first)
+   - Creates n8n payload with all components
    - Posts to selected webhook
    - Waits for specified interval
    - Continues to next video
 
 ### n8n Payload Format:
+
 ```json
 {
+  "user": "Video Title",
   "audios": ["audio1.mp3", "audio2.mp3", "audio3.mp3", "audio4.mp3"],
+  "background_audio": "https://example.com/background-music.mp3", 
   "images": ["image1.jpg", "image2.jpg", "image3.jpg", "image4.jpg"],
-  "background_audio": "https://example.com/background-music1.mp3",
-  "job_type": "submit_job",
-  "user": "Job Name",
   "channel_name": "Channel Name"
 }
 ```
 
 ## ⚠️ Common Issues
 
-### JSON Format Errors:
-- **Missing fields**: Ensure each video object has `user`, `message_link`, and `background_audio`
-- **Invalid JSON**: Check for proper JSON syntax
-- **Empty values**: All fields must have content
-
 ### Discord Message Errors:
 - **Invalid message link**: Must be a valid Discord message URL
-- **Wrong attachment count**: Must have exactly 8 attachments
-- **Wrong file types**: Must have 4 audio + 4 image files
+- **Wrong attachment count**: Must have exactly 4 attachments per message
+- **Wrong file types**: Audio messages need 4 audio files, Image messages need 4 image files
+- **Mixed file types**: Each message should contain only one type (all audio OR all images)
 - **Access denied**: Bot must have access to the channel
+
+### Background Audio Errors:
+- **Invalid URL**: Must be a valid HTTP/HTTPS URL
+- **Unsupported format**: Use MP3, WAV, M4A, AAC, OGG, or FLAC
+- **Access denied**: URL must be publicly accessible
 
 ### Webhook Errors:
 - **No webhook configured**: Set up n8n webhook URLs first
 - **Invalid webhook URL**: Check webhook URL format
 - **Network errors**: Check internet connection
+
+### Wizard Validation Errors:
+- **Count mismatch**: Number of titles, audio links, background audio URLs, and image links must all match
+- **Empty fields**: All required fields must be filled
 
 ## 📊 Progress Tracking
 
@@ -143,17 +122,36 @@ The system provides real-time progress tracking:
 - Use "Edit n8n Webhook URLs" button in navbar
 - Set up both "Submit Job" and "No Cap Job" webhooks
 
-## 📝 Example Workflow
+## 🎨 Dual Image Set Feature (Wizard Only)
 
-1. **Create 5 Discord messages** with 8 attachments each
-2. **Copy all message links**
-3. **Create JSON file** with the links
-4. **Upload to Discord Bulk Job**
-5. **Select "Submit Job"** webhook
-6. **Set 5-minute interval**
-7. **Start the job**
-8. **Monitor progress** in real-time
-9. **Check n8n** for processed jobs
+The wizard supports creating **two different video sets** using the same audio content:
+
+### Use Case:
+- **Set 1**: Gaming highlights with dramatic music → Post to "EpicWisdom" channel
+- **Set 2**: Same audio with different visuals → Post to "SynthSaga" channel
+
+### How It Works:
+1. Complete steps 1-5 normally (setup through first image set)
+2. In **Step 6**, enable "Use Same Audio Set for Different Image Set"
+3. Provide a new set of Discord message links with different images
+4. Select a different target channel
+5. The system will process **both sets** with the same titles and audio
+
+### Result:
+- **Total jobs**: Number of videos × 2 (if dual set enabled)
+- **Same audio reused**: Titles, audio, and background audio stay identical
+- **Different content**: Images and target channels change
+- **Sequential processing**: First set completes, then second set begins
+
+## 📝 Example Workflows
+
+### Example Workflow:
+1. **Use the step-by-step wizard**
+2. **Prepare Discord messages**: Audio (4 files each), Images (4 files each)
+3. **Prepare background audio URLs**: Direct links to MP3/WAV files
+4. **Follow wizard prompts** for validation and setup
+5. **Monitor real-time progress** as jobs execute
+6. **Check n8n** for processed jobs
 
 ## 🔄 Job Management
 

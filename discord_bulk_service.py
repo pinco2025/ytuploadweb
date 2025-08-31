@@ -74,64 +74,72 @@ class DiscordBulkJobService:
         except Exception as e:
             logger.error(f"Error during cleanup: {e}")
     
-    def create_bulk_job(self, json_data: List[Dict], webhook_url: str, 
-                        interval_minutes: int = 5, webhook_type: str = 'submit_job', channel_name: str = None) -> Tuple[bool, str, str]:
+
+
+    def create_wizard_bulk_job(self, num_videos: int, webhook_url: str, webhook_type: str, 
+                              titles: List[str], audio_links: List[str], background_audio_links: List[str],
+                              image_links: List[str], image_set_channel: str, use_second_image_set: bool = False,
+                              second_image_links: List[str] = None, second_image_set_channel: str = '',
+                              interval_minutes: int = 5) -> Tuple[bool, str, str]:
         """
-        Create a new bulk job with the provided data.
+        Create a new wizard-based bulk job with separate audio and image sets.
         
         Args:
-            json_data: List of dictionaries, each with 'name', 'message_link', and 'background_audio' keys
+            num_videos: Number of videos to create
             webhook_url: n8n webhook URL
-            interval_minutes: Minutes between posts (default: 5)
             webhook_type: Type of webhook ('submit_job' or 'nocap_job')
-            channel_name: Name of the Discord channel (optional)
+            titles: List of video titles
+            audio_links: List of Discord message links containing audio files
+            background_audio_links: List of Discord message links containing background audio files
+            image_links: List of Discord message links containing image files
+            image_set_channel: Channel name for first image set
+            use_second_image_set: Whether to create a second image set with same audio
+            second_image_links: List of Discord message links for second image set
+            second_image_set_channel: Channel name for second image set
+            interval_minutes: Minutes between posts
         
         Returns:
             Tuple of (success, message, job_id)
         """
         try:
-            # Validate JSON data structure
-            if not json_data or not isinstance(json_data, list) or len(json_data) == 0:
-                return False, "Invalid JSON data format. Expected a non-empty array of video objects.", ""
+            # Validate inputs
+            if not all([num_videos, webhook_url, webhook_type, titles, audio_links, 
+                       background_audio_links, image_links, image_set_channel]):
+                return False, "Missing required parameters", ""
             
-            # Validate each video item in the array
-            for i, item in enumerate(json_data):
-                if not isinstance(item, dict):
-                    return False, f"Video item {i} is not a valid object", ""
-                
-                if 'name' not in item or 'message_link' not in item or 'background_audio' not in item:
-                    return False, f"Video item {i} missing required 'name', 'message_link', or 'background_audio' field", ""
-                
-                if not item['name'] or not item['message_link'] or not item['background_audio']:
-                    return False, f"Video item {i} has empty name, message_link, or background_audio", ""
-            
-            # Validate webhook URL
-            if not webhook_url:
-                return False, "Invalid webhook URL", ""
-            
-            # Check if Discord bot token is available
             if not self.bot_token:
                 return False, "Discord bot token not configured", ""
             
             # Generate unique job ID
             job_id = str(uuid.uuid4())
             
+            # Calculate total jobs (include second image set if enabled)
+            total_jobs = num_videos * (2 if use_second_image_set else 1)
+            
             # Create job data
             job_data = {
                 'id': job_id,
-                'data': json_data,  # Store the entire array
+                'job_type': 'wizard',  # Mark as wizard job
+                'num_videos': num_videos,
                 'webhook_url': webhook_url,
                 'webhook_type': webhook_type,
+                'titles': titles,
+                'audio_links': audio_links,
+                'background_audio_links': background_audio_links,
+                'image_links': image_links,
+                'image_set_channel': image_set_channel,
+                'use_second_image_set': use_second_image_set,
+                'second_image_links': second_image_links or [],
+                'second_image_set_channel': second_image_set_channel,
                 'interval_minutes': interval_minutes,
-                'total_items': len(json_data),
+                'total_items': total_jobs,
                 'completed': 0,
                 'failed': 0,
                 'status': 'pending',
                 'start_time': datetime.now().isoformat(),
                 'next_post_time': None,
                 'last_post_time': None,
-                'errors': [],
-                'channel_name': channel_name
+                'errors': []
             }
             
             # Store job data
@@ -139,20 +147,22 @@ class DiscordBulkJobService:
                 self.active_jobs[job_id] = job_data
             
             # Start background processing
-            thread = threading.Thread(target=self._process_job, args=(job_id,), name=f"discord_job_{job_id}")
+            thread = threading.Thread(target=self._process_wizard_job, args=(job_id,), name=f"discord_wizard_job_{job_id}")
             thread.daemon = True
             self._active_threads.add(thread)
             thread.start()
             
-            logger.info(f"Created bulk job {job_id} with {len(json_data)} items")
-            return True, f"Bulk job created successfully with {len(json_data)} items", job_id
+            logger.info(f"Created wizard bulk job {job_id} with {total_jobs} total jobs ({num_videos} videos)")
+            return True, f"Wizard bulk job created successfully with {total_jobs} total jobs", job_id
             
         except Exception as e:
-            logger.error(f"Error creating bulk job: {e}")
-            return False, f"Error creating bulk job: {str(e)}", ""
+            logger.error(f"Error creating wizard bulk job: {e}")
+            return False, f"Error creating wizard bulk job: {str(e)}", ""
     
-    def _process_job(self, job_id: str):
-        """Background thread to process the bulk job."""
+
+    
+    def _process_wizard_job(self, job_id: str):
+        """Background thread to process the wizard bulk job."""
         try:
             with self.job_lock:
                 if job_id not in self.active_jobs:
@@ -160,83 +170,14 @@ class DiscordBulkJobService:
                 job_data = self.active_jobs[job_id]
                 job_data['status'] = 'running'
             
-            logger.info(f"Starting bulk job {job_id}")
+            logger.info(f"Starting wizard bulk job {job_id}")
             
-            for i, item in enumerate(job_data['data']):
-                try:
-                    # Check if server is shutting down
-                    if self._shutdown_event.is_set():
-                        logger.info(f"Server shutting down, stopping job {job_id}")
-                        with self.job_lock:
-                            if job_id in self.active_jobs:
-                                job_data['status'] = 'cancelled'
-                        return
-                    
-                    # Check if job was cancelled
-                    with self.job_lock:
-                        if job_id not in self.active_jobs or job_data['status'] == 'cancelled':
-                            return
-                    
-                    # Extract attachments from the message link
-                    message_link = item['message_link']
-                    try:
-                        attachments = self._extract_attachments(message_link)
-                    except Exception as e:
-                        logger.error(f"Failed to extract attachments from message {i+1}: {e}")
-                        with self.job_lock:
-                            if job_id in self.active_jobs:
-                                job_data['failed'] += 1
-                                job_data['errors'].append(f"Failed to extract attachments from message {i+1}: {str(e)}")
-                        continue
-                    
-                    # Create payload for n8n webhook with separate background_audio field
-                    n8n_payload = {
-                        'user': item['name'],  # Use 'name' field from JSON
-                        'images': attachments['images'],  # 4 images from Discord
-                        'audios': attachments['audios'],  # 4 audios from Discord (keep original)
-                        'background_audio': item['background_audio'],  # Separate background audio field
-                        'channel_name': job_data.get('channel_name')  # Include channel name
-                    }
-                    
-                    # Post to n8n webhook
-                    success = self._post_to_n8n_webhook(job_data['webhook_url'], n8n_payload, item['name'])
-                    
-                    with self.job_lock:
-                        if job_id in self.active_jobs:
-                            job_data['completed'] += 1
-                            job_data['last_post_time'] = datetime.now().isoformat()
-                            
-                            if not success:
-                                job_data['failed'] += 1
-                                job_data['errors'].append(f"Failed to post item {i+1}: {item['name']}")
-                            
-                            # Calculate next post time
-                            if i < len(job_data['data']) - 1:  # Not the last item
-                                next_time = datetime.now() + timedelta(minutes=job_data['interval_minutes'])
-                                job_data['next_post_time'] = next_time.isoformat()
-                    
-                    logger.info(f"Posted item {i+1}/{len(job_data['data'])} for job {job_id}")
-                    
-                    # Wait for interval (except for the last item)
-                    if i < len(job_data['data']) - 1:
-                        # Wait in smaller chunks to check for shutdown
-                        wait_time = job_data['interval_minutes'] * 60
-                        chunk_size = 10  # Check every 10 seconds
-                        for _ in range(0, wait_time, chunk_size):
-                            if self._shutdown_event.is_set():
-                                logger.info(f"Server shutting down during wait, stopping job {job_id}")
-                                with self.job_lock:
-                                    if job_id in self.active_jobs:
-                                        job_data['status'] = 'cancelled'
-                                return
-                            time.sleep(min(chunk_size, wait_time - _))
-                
-                except Exception as e:
-                    logger.error(f"Error processing item {i+1} for job {job_id}: {e}")
-                    with self.job_lock:
-                        if job_id in self.active_jobs:
-                            job_data['failed'] += 1
-                            job_data['errors'].append(f"Error processing item {i+1}: {str(e)}")
+            # Process first image set
+            self._process_image_set(job_id, job_data, 1)
+            
+            # Process second image set if enabled
+            if job_data.get('use_second_image_set', False):
+                self._process_image_set(job_id, job_data, 2)
             
             # Mark job as completed
             with self.job_lock:
@@ -244,10 +185,10 @@ class DiscordBulkJobService:
                     job_data['status'] = 'completed'
                     job_data['next_post_time'] = None
             
-            logger.info(f"Completed bulk job {job_id}")
+            logger.info(f"Completed wizard bulk job {job_id}")
             
         except Exception as e:
-            logger.error(f"Error in bulk job {job_id}: {e}")
+            logger.error(f"Error in wizard bulk job {job_id}: {e}")
             with self.job_lock:
                 if job_id in self.active_jobs:
                     job_data['status'] = 'error'
@@ -257,6 +198,114 @@ class DiscordBulkJobService:
             current_thread = threading.current_thread()
             if current_thread in self._active_threads:
                 self._active_threads.remove(current_thread)
+    
+    def _process_image_set(self, job_id: str, job_data: Dict, image_set_number: int):
+        """Process a single image set (1 or 2) for all videos."""
+        try:
+            num_videos = job_data['num_videos']
+            
+            # Determine which image set to use
+            if image_set_number == 1:
+                image_links = job_data['image_links']
+                channel_name = job_data['image_set_channel']
+            else:
+                image_links = job_data['second_image_links']
+                channel_name = job_data['second_image_set_channel']
+            
+            for video_index in range(num_videos):
+                try:
+                    # Check if server is shutting down or job was cancelled
+                    if self._shutdown_event.is_set():
+                        logger.info(f"Server shutting down, stopping wizard job {job_id}")
+                        with self.job_lock:
+                            if job_id in self.active_jobs:
+                                job_data['status'] = 'cancelled'
+                        return
+                    
+                    with self.job_lock:
+                        if job_id not in self.active_jobs or job_data['status'] == 'cancelled':
+                            return
+                    
+                    # Get data for this video
+                    title = job_data['titles'][video_index]
+                    audio_link = job_data['audio_links'][video_index]
+                    background_audio_link = job_data['background_audio_links'][video_index]
+                    image_link = image_links[video_index]
+                    
+                    # Extract attachments from Discord messages
+                    try:
+                        audio_attachments = self._extract_attachments(audio_link)
+                        # Background audio is now a direct URL, not a Discord message link
+                        background_audio_url = background_audio_link.strip()
+                        image_attachments = self._extract_attachments(image_link)
+                    except Exception as e:
+                        error_msg = f"Failed to extract attachments for video {video_index + 1} (image set {image_set_number}): {str(e)}"
+                        logger.error(error_msg)
+                        with self.job_lock:
+                            if job_id in self.active_jobs:
+                                job_data['failed'] += 1
+                                job_data['errors'].append(error_msg)
+                        continue
+                    
+                    # Create payload for n8n webhook
+                    n8n_payload = {
+                        'user': title,
+                        'images': image_attachments['images'],  # 4 images from Discord (reversed)
+                        'audios': audio_attachments['audios'],  # 4 audios from Discord (reversed)
+                        'background_audio': background_audio_url,  # Single background audio URL
+                        'channel_name': channel_name
+                    }
+                    
+                    # Post to n8n webhook
+                    success = self._post_to_n8n_webhook(job_data['webhook_url'], n8n_payload, 
+                                                      f"{title} (Set {image_set_number})")
+                    
+                    with self.job_lock:
+                        if job_id in self.active_jobs:
+                            job_data['completed'] += 1
+                            job_data['last_post_time'] = datetime.now().isoformat()
+                            
+                            if not success:
+                                job_data['failed'] += 1
+                                job_data['errors'].append(f"Failed to post video {video_index + 1} (image set {image_set_number}): {title}")
+                            
+                            # Calculate next post time if not the last item
+                            current_job_number = job_data['completed']
+                            if current_job_number < job_data['total_items']:
+                                next_time = datetime.now() + timedelta(minutes=job_data['interval_minutes'])
+                                job_data['next_post_time'] = next_time.isoformat()
+                    
+                    logger.info(f"Posted video {video_index + 1}/{num_videos} (image set {image_set_number}) for wizard job {job_id}")
+                    
+                    # Wait for interval (except for the last item of the last set)
+                    current_job_number = job_data['completed']
+                    if current_job_number < job_data['total_items']:
+                        # Wait in smaller chunks to check for shutdown
+                        wait_time_seconds = job_data['interval_minutes'] * 60
+                        chunk_size = 10  # Check every 10 seconds
+                        for wait_elapsed in range(0, wait_time_seconds, chunk_size):
+                            if self._shutdown_event.is_set():
+                                logger.info(f"Server shutting down during wait, stopping wizard job {job_id}")
+                                with self.job_lock:
+                                    if job_id in self.active_jobs:
+                                        job_data['status'] = 'cancelled'
+                                return
+                            time.sleep(min(chunk_size, wait_time_seconds - wait_elapsed))
+                
+                except Exception as e:
+                    error_msg = f"Error processing video {video_index + 1} (image set {image_set_number}) for wizard job {job_id}: {str(e)}"
+                    logger.error(error_msg)
+                    with self.job_lock:
+                        if job_id in self.active_jobs:
+                            job_data['failed'] += 1
+                            job_data['errors'].append(error_msg)
+            
+        except Exception as e:
+            error_msg = f"Error processing image set {image_set_number} for wizard job {job_id}: {str(e)}"
+            logger.error(error_msg)
+            with self.job_lock:
+                if job_id in self.active_jobs:
+                    job_data['errors'].append(error_msg)
     
     def _post_to_n8n_webhook(self, webhook_url: str, payload: Dict, item_name: str) -> bool:
         """Post payload to n8n webhook."""
@@ -275,7 +324,7 @@ class DiscordBulkJobService:
             return False
     
     def _extract_attachments(self, message_link: str) -> Dict[str, List[str]]:
-        """Extract images and audios from a Discord message link."""
+        """Extract images and audios from a Discord message link (Wizard mode: 4 attachments)."""
         try:
             # Clean the message link
             if 'discordapp.com' in message_link:
@@ -304,9 +353,9 @@ class DiscordBulkJobService:
             data = resp.json()
             attachments = data.get('attachments', [])
             
-            # Require exactly 8 attachments (4 audio + 4 images)
-            if len(attachments) != 8:
-                raise Exception(f"Message must have exactly 8 attachments (4 audio + 4 images), found {len(attachments)}")
+            # Wizard mode: exactly 4 attachments (either all audio or all images)
+            if len(attachments) != 4:
+                raise Exception(f"Message must have exactly 4 attachments, found {len(attachments)}")
             
             # Separate audio and image files by extension
             audio_exts = {'.mp3', '.wav', '.m4a', '.aac', '.mp4'}
@@ -318,11 +367,17 @@ class DiscordBulkJobService:
             audios = [a['url'] for a in audios_full]
             images = [a['url'] for a in images_full]
             
-            # Validate we have exactly 4 audio and 4 image files
-            if len(audios) != 4 or len(images) != 4:
-                raise Exception(f"Message must have exactly 4 audio and 4 image files. Found {len(audios)} audio and {len(images)} images")
+            # Determine what type of attachments we have
+            if len(audios) == 4 and len(images) == 0:
+                # All audio files
+                pass
+            elif len(images) == 4 and len(audios) == 0:
+                # All image files  
+                pass
+            else:
+                raise Exception(f"Message must have exactly 4 files of the same type. Found {len(audios)} audio and {len(images)} images")
             
-            # Reverse both arrays for consistency (like standard jobs)
+            # Reverse both arrays for consistency (last attachment first)
             images = images[::-1]
             audios = audios[::-1]
             

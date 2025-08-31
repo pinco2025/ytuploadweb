@@ -151,114 +151,10 @@ def load_n8n_config():
 
 # Discord Bulk Job routes
 if app.config['ENABLE_DISCORD_JOB']:
-    @app.route('/discord-bulk-job', methods=['GET', 'POST'])
+    @app.route('/discord-bulk-job', methods=['GET'])
     def discord_bulk_job():
-        """Handle Discord bulk job submission with JSON file upload."""
-        if request.method == 'GET':
-            return render_template('discord_bulk_job.html', config=app.config)
-        
-        # POST: handle bulk job submission
-        try:
-            # Get form data
-            json_file = request.files.get('json_file')
-            webhook_type = request.form.get('webhook_type', '').strip()
-            webhook_url = request.form.get('webhook_url', '').strip()
-            interval_minutes = int(request.form.get('interval_minutes', 5))
-            channel_name = request.form.get('channel_name', '').strip()
-            
-            # Validate required fields
-            if not json_file:
-                return jsonify({'success': False, 'message': 'Please upload a JSON file.'}), 400
-            
-            if not webhook_type:
-                return jsonify({'success': False, 'message': 'Please select a webhook type.'}), 400
-            
-            if not channel_name:
-                return jsonify({'success': False, 'message': 'Please select a channel name.'}), 400
-            
-            # Handle webhook URL based on type
-            if webhook_type in ['submit_job', 'nocap_job']:
-                # Get webhook URL from n8n config
-                n8n_config = load_n8n_config()
-                webhook_urls = n8n_config.get('webhook_urls', {})
-                webhook_url = webhook_urls.get(webhook_type)
-                
-                if not webhook_url:
-                    return jsonify({'success': False, 'message': f'No webhook URL configured for {webhook_type.replace("_", " ")}.'}), 400
-            elif webhook_type == 'custom':
-                # Validate custom webhook URL
-                if not webhook_url:
-                    return jsonify({'success': False, 'message': 'Please provide a webhook URL.'}), 400
-                
-                if not webhook_url.startswith('https://discord.com/api/webhooks/'):
-                    return jsonify({'success': False, 'message': 'Invalid Discord webhook URL.'}), 400
-            else:
-                return jsonify({'success': False, 'message': 'Invalid webhook type.'}), 400
-                
-            # Read and parse JSON file
-            try:
-                json_content = json_file.read().decode('utf-8')
-                json_data = json.loads(json_content)
-            except UnicodeDecodeError:
-                return jsonify({'success': False, 'message': 'Invalid file encoding. Please use UTF-8.'}), 400
-            except json.JSONDecodeError as e:
-                return jsonify({'success': False, 'message': f'Invalid JSON format: {str(e)}'}), 400
-            
-            # Validate JSON structure
-            if not isinstance(json_data, list):
-                return jsonify({'success': False, 'message': 'JSON file must contain an array of video objects.'}), 400
-            
-            if len(json_data) == 0:
-                return jsonify({'success': False, 'message': 'JSON file must contain at least one video item.'}), 400
-            
-            # Validate each video item
-            for i, item in enumerate(json_data):
-                if not isinstance(item, dict):
-                    return jsonify({'success': False, 'message': f'Video item {i+1} is not a valid object.'}), 400
-                
-                if 'name' not in item or 'message_link' not in item or 'background_audio' not in item:
-                    return jsonify({'success': False, 'message': f'Video item {i+1} missing required "name", "message_link", or "background_audio" field.'}), 400
-                
-                if not item['name'] or not item['message_link'] or not item['background_audio']:
-                    return jsonify({'success': False, 'message': f'Video item {i+1} has empty name, message_link, or background_audio.'}), 400
-                
-                # Validate Discord message link format
-                message_link = item['message_link'].strip()
-                if 'discordapp.com' in message_link:
-                    message_link = message_link.replace('discordapp.com', 'discord.com')
-                if message_link.startswith('discord://'):
-                    message_link = message_link.replace('discord://discord', 'https://discord.com')
-                    message_link = message_link.replace('discord://', 'https://discord.com/')
-                
-                # Check if it's a valid Discord message link
-                if not message_link.startswith('https://discord.com/channels/'):
-                    return jsonify({'success': False, 'message': f'Item {i+1} has invalid Discord message link format.'}), 400
-                
-                # Update the message_link with cleaned format
-                item['message_link'] = message_link
-            
-            # Create bulk job
-            success, message, job_id = discord_bulk_service.create_bulk_job(
-                json_data=json_data,
-                webhook_url=webhook_url,
-                interval_minutes=interval_minutes,
-                webhook_type=webhook_type,
-                channel_name=channel_name
-            )
-            
-            if success:
-                return jsonify({
-                    'success': True,
-                    'message': message,
-                    'job_id': job_id,
-                    'total_items': len(json_data)
-                })
-            else:
-                return jsonify({'success': False, 'message': message}), 400
-                
-        except Exception as e:
-            logger.error(f"Error in discord bulk job: {e}")
-            return jsonify({'success': False, 'message': f'Error processing bulk job: {str(e)}'}), 500
+        """Discord bulk job wizard interface."""
+        return render_template('discord_bulk_job.html', config=app.config)
     
     @app.route('/api/discord-bulk-job-status/<job_id>')
     def discord_bulk_job_status(job_id):
@@ -307,6 +203,130 @@ if app.config['ENABLE_DISCORD_JOB']:
         except Exception as e:
             logger.error(f"Error cancelling job: {e}")
             return jsonify({'success': False, 'message': f'Error cancelling job: {str(e)}'}), 500
+    
+    @app.route('/discord-bulk-job-wizard', methods=['POST'])
+    def discord_bulk_job_wizard():
+        """Handle Discord bulk job submission from wizard interface."""
+        try:
+            # Get JSON data from request
+            data = request.get_json()
+            
+            if not data:
+                return jsonify({'success': False, 'message': 'No data provided'}), 400
+            
+            # Extract wizard data
+            num_videos = data.get('numVideos', 0)
+            webhook_type = data.get('webhookType', '').strip()
+            titles = data.get('titles', [])
+            audio_links = data.get('audioLinks', [])
+            background_audio_links = data.get('backgroundAudioLinks', [])
+            image_links = data.get('imageLinks', [])
+            image_set_channel = data.get('imageSetChannel', '').strip()
+            use_second_image_set = data.get('useSecondImageSet', False)
+            second_image_links = data.get('secondImageLinks', [])
+            second_image_set_channel = data.get('secondImageSetChannel', '').strip()
+            interval_minutes = data.get('intervalMinutes', 5)
+            
+            # Validate basic requirements
+            if not num_videos or num_videos < 1:
+                return jsonify({'success': False, 'message': 'Invalid number of videos'}), 400
+            
+            if webhook_type not in ['submit_job', 'nocap_job']:
+                return jsonify({'success': False, 'message': 'Invalid webhook type'}), 400
+            
+            # Get webhook URL from n8n config
+            n8n_config = load_n8n_config()
+            webhook_urls = n8n_config.get('webhook_urls', {})
+            webhook_url = webhook_urls.get(webhook_type)
+            
+            if not webhook_url:
+                return jsonify({'success': False, 'message': f'No webhook URL configured for {webhook_type.replace("_", " ")}'}), 400
+            
+            # Validate counts match
+            if len(titles) != num_videos:
+                return jsonify({'success': False, 'message': f'Number of titles ({len(titles)}) must match number of videos ({num_videos})'}), 400
+            
+            if len(audio_links) != num_videos:
+                return jsonify({'success': False, 'message': f'Number of audio links ({len(audio_links)}) must match number of videos ({num_videos})'}), 400
+            
+            if len(background_audio_links) != num_videos:
+                return jsonify({'success': False, 'message': f'Number of background audio links ({len(background_audio_links)}) must match number of videos ({num_videos})'}), 400
+            
+            if len(image_links) != num_videos:
+                return jsonify({'success': False, 'message': f'Number of image links ({len(image_links)}) must match number of videos ({num_videos})'}), 400
+            
+            if not image_set_channel:
+                return jsonify({'success': False, 'message': 'Image set channel is required'}), 400
+            
+            # Validate second image set if enabled
+            if use_second_image_set:
+                if len(second_image_links) != num_videos:
+                    return jsonify({'success': False, 'message': f'Number of second image links ({len(second_image_links)}) must match number of videos ({num_videos})'}), 400
+                
+                if not second_image_set_channel:
+                    return jsonify({'success': False, 'message': 'Second image set channel is required when using second image set'}), 400
+            
+            # Validate Discord message link formats (for audio and image links)
+            discord_links = audio_links + image_links
+            if use_second_image_set:
+                discord_links += second_image_links
+            
+            for link in discord_links:
+                # Clean the message link
+                if 'discordapp.com' in link:
+                    link = link.replace('discordapp.com', 'discord.com')
+                if link.startswith('discord://'):
+                    link = link.replace('discord://discord', 'https://discord.com')
+                    link = link.replace('discord://', 'https://discord.com/')
+                link = link.strip()
+                
+                # Validate Discord link format
+                import re
+                discord_pattern = r'^https://discord\.com/channels/\d+/\d+/\d+$'
+                if not re.match(discord_pattern, link):
+                    return jsonify({'success': False, 'message': f'Invalid Discord message link format: {link}'}), 400
+            
+            # Validate background audio URLs (direct links)
+            import urllib.parse
+            for i, bg_audio_url in enumerate(background_audio_links):
+                bg_audio_url = bg_audio_url.strip()
+                try:
+                    result = urllib.parse.urlparse(bg_audio_url)
+                    if not all([result.scheme, result.netloc]):
+                        return jsonify({'success': False, 'message': f'Invalid background audio URL {i+1}: {bg_audio_url}'}), 400
+                    if result.scheme not in ['http', 'https']:
+                        return jsonify({'success': False, 'message': f'Background audio URL {i+1} must use HTTP or HTTPS: {bg_audio_url}'}), 400
+                except Exception as e:
+                    return jsonify({'success': False, 'message': f'Invalid background audio URL {i+1}: {bg_audio_url}'}), 400
+            
+            # Create wizard job using the new wizard service
+            success, message, job_id = discord_bulk_service.create_wizard_bulk_job(
+                num_videos=num_videos,
+                webhook_url=webhook_url,
+                webhook_type=webhook_type,
+                titles=titles,
+                audio_links=audio_links,
+                background_audio_links=background_audio_links,
+                image_links=image_links,
+                image_set_channel=image_set_channel,
+                use_second_image_set=use_second_image_set,
+                second_image_links=second_image_links if use_second_image_set else [],
+                second_image_set_channel=second_image_set_channel if use_second_image_set else '',
+                interval_minutes=interval_minutes
+            )
+            
+            if success:
+                return jsonify({
+                    'success': True,
+                    'message': message,
+                    'job_id': job_id
+                })
+            else:
+                return jsonify({'success': False, 'message': message}), 400
+                
+        except Exception as e:
+            logger.error(f"Error in discord bulk job wizard: {e}")
+            return jsonify({'success': False, 'message': f'Error processing wizard job: {str(e)}'}), 500
 
 # Home route - redirects to bulk uploader
 @app.route('/', methods=['GET'])

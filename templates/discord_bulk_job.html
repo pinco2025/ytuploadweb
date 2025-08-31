@@ -1,89 +1,295 @@
 {% extends "base.html" %}
-{% block title %}Discord Bulk Job{% endblock %}
+{% block title %}Discord Bulk Job Wizard{% endblock %}
 {% block content %}
 <div class="container mt-4">
-
     <div class="row justify-content-center">
         <div class="col-lg-10">
             <div class="card">
                 <div class="card-header bg-primary text-white">
-                    <h2 class="text-center mb-0">
-                        <i class="fab fa-discord me-2"></i>Discord Bulk Job
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div></div>
+                        <h2 class="mb-0">
+                            <i class="fab fa-discord me-2"></i>Discord Bulk Job Wizard
                     </h2>
+                        <button type="button" class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#wizardHelpModal" title="Show wizard guide">
+                            <i class="fas fa-question-circle"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body">
-                    <form id="discordBulkJobForm" enctype="multipart/form-data">
+                    <!-- Progress Indicator -->
+                    <div class="progress mb-4" style="height: 8px;">
+                        <div class="progress-bar" id="wizardProgress" role="progressbar" style="width: 14%"></div>
+                    </div>
+                    
+                    <!-- Step Indicator -->
+                    <div class="d-flex justify-content-between mb-4">
+                        <div class="step-indicator active" data-step="1">
+                            <div class="step-circle">1</div>
+                            <div class="step-label">Setup</div>
+                        </div>
+                        <div class="step-indicator" data-step="2">
+                            <div class="step-circle">2</div>
+                            <div class="step-label">Titles</div>
+                        </div>
+                        <div class="step-indicator" data-step="3">
+                            <div class="step-circle">3</div>
+                            <div class="step-label">Audio Set</div>
+                        </div>
+                        <div class="step-indicator" data-step="4">
+                            <div class="step-circle">4</div>
+                            <div class="step-label">Background Audio</div>
+                        </div>
+                        <div class="step-indicator" data-step="5">
+                            <div class="step-circle">5</div>
+                            <div class="step-label">Image Set</div>
+                        </div>
+                        <div class="step-indicator" data-step="6">
+                            <div class="step-circle">6</div>
+                            <div class="step-label">Optional Images</div>
+                        </div>
+                        <div class="step-indicator" data-step="7">
+                            <div class="step-circle">7</div>
+                            <div class="step-label">Execute</div>
+                        </div>
+                    </div>
+
+                    <!-- Step 1: Job Setup -->
+                    <div class="wizard-step" id="step1" style="display: block;">
+                        <h4><i class="fas fa-cog me-2"></i>Step 1: Job Setup</h4>
                         <div class="mb-3">
-                            <label for="json_file" class="form-label">
-                                <i class="fas fa-file-upload me-1"></i>JSON File Upload
-                                <button type="button" class="btn btn-sm btn-outline-info ms-2" data-bs-toggle="modal" data-bs-target="#jsonFormatModal" title="Show JSON format example">
-                                    <i class="fas fa-info-circle"></i>
-                                </button>
+                            <label for="numVideos" class="form-label">
+                                <i class="fas fa-video me-1"></i>Number of Videos
                             </label>
-                            <input type="file" class="form-control" id="json_file" name="json_file" accept=".json" required>
-                            <div class="form-text">Upload a JSON file with links and names</div>
-                            <div class="validation-error" id="json_file_error"></div>
+                            <input type="number" class="form-control" id="numVideos" min="1" max="50" required>
+                            <div class="form-text">How many videos will you create?</div>
                         </div>
                         
                         <div class="mb-3">
                             <label for="webhook_type" class="form-label">
-                                <i class="fas fa-cog me-1"></i>Webhook Type
+                                <i class="fas fa-link me-1"></i>Webhook Type
                             </label>
-                            <select class="form-select" id="webhook_type" name="webhook_type" required>
+                            <select class="form-select" id="webhook_type" required>
                                 <option value="">Select webhook type...</option>
                                 <option value="submit_job">Submit Job</option>
                                 <option value="nocap_job">No Cap Job</option>
                             </select>
-                            <div class="form-text">Choose from n8n webhooks</div>
                         </div>
                         
+                        <div class="d-flex justify-content-end">
+                            <button type="button" class="btn btn-primary" onclick="nextStep(1)">
+                                Next <i class="fas fa-arrow-right ms-1"></i>
+                            </button>
+                        </div>
+                    </div>
 
+                    <!-- Step 2: Titles -->
+                    <div class="wizard-step" id="step2" style="display: none;">
+                        <h4><i class="fas fa-heading me-2"></i>Step 2: Video Titles</h4>
+                        <div class="mb-3">
+                            <label for="videoTitles" class="form-label">
+                                Video Titles <span class="badge bg-info ms-2" id="titleCount">0 titles</span>
+                            </label>
+                            <textarea class="form-control" id="videoTitles" rows="10" placeholder="Enter one title per line...&#10;Example:&#10;Amazing Tutorial Part 1&#10;Incredible Content Episode 2&#10;Epic Gaming Highlights"></textarea>
+                            <div class="form-text">Enter one title per line. Must match the number of videos.</div>
+                            <div class="validation-error" id="titlesError"></div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <button type="button" class="btn btn-secondary" onclick="prevStep(2)">
+                                <i class="fas fa-arrow-left me-1"></i> Previous
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="nextStep(2)">
+                                Next <i class="fas fa-arrow-right ms-1"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Audio Set -->
+                    <div class="wizard-step" id="step3" style="display: none;">
+                        <h4><i class="fas fa-music me-2"></i>Step 3: Audio Set</h4>
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Each Discord message link should contain exactly 4 audio files. Files will be processed in reverse order.
+                        </div>
                         
                         <div class="mb-3">
-                            <label for="channel_name" class="form-label">
-                                <i class="fas fa-hashtag me-1"></i>Channel Name
+                            <label for="audioLinks" class="form-label">
+                                Discord Message Links (Audio) <span class="badge bg-info ms-2" id="audioCount">0 links</span>
                             </label>
-                            <select class="form-select" id="channel_name" name="channel_name" required>
+                            <textarea class="form-control" id="audioLinks" rows="8" placeholder="Enter one Discord message link per line...&#10;Example:&#10;https://discord.com/channels/123456789/987654321/111222333&#10;https://discord.com/channels/123456789/987654321/444555666"></textarea>
+                            <div class="form-text">One link per line. Each message must have 4 audio attachments.</div>
+                            <div class="validation-error" id="audioError"></div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <button type="button" class="btn btn-secondary" onclick="prevStep(3)">
+                                <i class="fas fa-arrow-left me-1"></i> Previous
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="nextStep(3)">
+                                Next <i class="fas fa-arrow-right ms-1"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Step 4: Background Audio Set -->
+                    <div class="wizard-step" id="step4" style="display: none;">
+                        <h4><i class="fas fa-volume-up me-2"></i>Step 4: Background Audio Set</h4>
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Each line should contain a direct link to a background audio file (MP3, WAV, etc.). These are typically hosted URLs or direct download links.
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="backgroundAudioLinks" class="form-label">
+                                Background Audio URLs <span class="badge bg-info ms-2" id="backgroundAudioCount">0 links</span>
+                            </label>
+                            <textarea class="form-control" id="backgroundAudioLinks" rows="8" placeholder="Enter one background audio URL per line...&#10;Example:&#10;https://example.com/background-music1.mp3&#10;https://drive.google.com/uc?id=FILE_ID&#10;https://soundcloud.com/track/download.mp3"></textarea>
+                            <div class="form-text">One direct audio file URL per line. Supports MP3, WAV, M4A, AAC formats.</div>
+                            <div class="validation-error" id="backgroundAudioError"></div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <button type="button" class="btn btn-secondary" onclick="prevStep(4)">
+                                <i class="fas fa-arrow-left me-1"></i> Previous
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="nextStep(4)">
+                                Next <i class="fas fa-arrow-right ms-1"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Step 5: Image Set -->
+                    <div class="wizard-step" id="step5" style="display: none;">
+                        <h4><i class="fas fa-images me-2"></i>Step 5: Image Set</h4>
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Each Discord message link should contain exactly 4 image files. Files will be processed in reverse order.
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="imageLinks" class="form-label">
+                                Discord Message Links (Images) <span class="badge bg-info ms-2" id="imageCount">0 links</span>
+                            </label>
+                            <textarea class="form-control" id="imageLinks" rows="8" placeholder="Enter one Discord message link per line...&#10;Example:&#10;https://discord.com/channels/123456789/987654321/333444555&#10;https://discord.com/channels/123456789/987654321/666777888"></textarea>
+                            <div class="form-text">One link per line. Each message must have 4 image attachments.</div>
+                            <div class="validation-error" id="imageError"></div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="imageSetChannel" class="form-label">
+                                <i class="fas fa-hashtag me-1"></i>Channel for Image Set
+                            </label>
+                            <select class="form-select" id="imageSetChannel" required>
                                 <option value="">Select a channel...</option>
                                 <!-- Options will be populated by JS -->
                             </select>
                         </div>
                         
-                        <div class="mb-3">
-                            <label for="interval_minutes" class="form-label">
-                                <i class="fas fa-clock me-1"></i>Interval (minutes)
-                            </label>
-                            <input type="number" class="form-control" id="interval_minutes" name="interval_minutes" value="5" min="1" max="60" required>
-                            <div class="form-text">Time between each webhook post (default: 5 minutes)</div>
-                        </div>
-                        
-                        <div class="d-grid mb-3">
-                            <button type="submit" class="btn btn-success btn-lg" id="startBulkJobBtn">
-                                <i class="fas fa-play me-2"></i>Start Bulk Job
+                        <div class="d-flex justify-content-between">
+                            <button type="button" class="btn btn-secondary" onclick="prevStep(5)">
+                                <i class="fas fa-arrow-left me-1"></i> Previous
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="nextStep(5)">
+                                Next <i class="fas fa-arrow-right ms-1"></i>
                             </button>
                         </div>
-                    </form>
-                    
-                    <div id="statusArea" class="mt-4"></div>
-                    <div class="text-center mt-3 loading-spinner" id="loadingSpinner" style="display:none;">
-                        <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden">Processing...</span>
+                    </div>
+
+                    <!-- Step 6: Optional Second Image Set -->
+                    <div class="wizard-step" id="step6" style="display: none;">
+                        <h4><i class="fas fa-layer-group me-2"></i>Step 6: Optional Second Image Set</h4>
+                        
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="useSecondImageSet">
+                                <label class="form-check-label" for="useSecondImageSet">
+                                    <strong>Use Same Audio Set for Different Image Set</strong>
+                                </label>
+                            </div>
+                            <div class="form-text">Enable this to create another set of videos with the same audio but different images.</div>
                         </div>
-                        <p class="mt-2">Processing bulk job...</p>
+
+                        <div id="secondImageSetSection" style="display: none;">
+                            <div class="alert alert-warning">
+                                <i class="fas fa-info-circle me-2"></i>
+                                This will reuse the same titles, audio set, and background audio set with a new set of images.
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="secondImageLinks" class="form-label">
+                                    Discord Message Links (Second Image Set) <span class="badge bg-info ms-2" id="secondImageCount">0 links</span>
+                                </label>
+                                <textarea class="form-control" id="secondImageLinks" rows="8" placeholder="Enter one Discord message link per line...&#10;Example:&#10;https://discord.com/channels/123456789/987654321/999000111&#10;https://discord.com/channels/123456789/987654321/222333444"></textarea>
+                                <div class="form-text">One link per line. Each message must have 4 image attachments.</div>
+                                <div class="validation-error" id="secondImageError"></div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="secondImageSetChannel" class="form-label">
+                                    <i class="fas fa-hashtag me-1"></i>Channel for Second Image Set
+                            </label>
+                                <select class="form-select" id="secondImageSetChannel">
+                                    <option value="">Select a channel...</option>
+                                    <!-- Options will be populated by JS -->
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <button type="button" class="btn btn-secondary" onclick="prevStep(6)">
+                                <i class="fas fa-arrow-left me-1"></i> Previous
+                            </button>
+                            <button type="button" class="btn btn-primary" onclick="nextStep(6)">
+                                Next <i class="fas fa-arrow-right ms-1"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Step 7: Execute -->
+                    <div class="wizard-step" id="step7" style="display: none;">
+                        <h4><i class="fas fa-play me-2"></i>Step 7: Execute Job</h4>
+                        
+                        <div class="mb-3">
+                            <label for="intervalMinutes" class="form-label">
+                                <i class="fas fa-clock me-1"></i>Interval Between Posts (minutes)
+                            </label>
+                            <input type="number" class="form-control" id="intervalMinutes" value="5" min="1" max="60" required>
+                            <div class="form-text">Time to wait between each payload post (default: 5 minutes)</div>
+                        </div>
+                        
+                        <div class="card mb-3">
+                            <div class="card-header bg-light">
+                                <h6 class="mb-0"><i class="fas fa-summary me-2"></i>Job Summary</h6>
+                            </div>
+                            <div class="card-body" id="jobSummary">
+                                <!-- Summary will be populated by JS -->
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <button type="button" class="btn btn-secondary" onclick="prevStep(7)">
+                                <i class="fas fa-arrow-left me-1"></i> Previous
+                            </button>
+                            <button type="button" class="btn btn-success btn-lg" id="startJobBtn">
+                                <i class="fas fa-rocket me-2"></i>Start Job
+                            </button>
+                        </div>
                     </div>
                     
-                    <div id="jobProgress" class="mt-4" style="display:none;">
+                    <!-- Job Execution Status -->
+                    <div id="jobExecution" class="mt-4" style="display: none;">
                         <div class="card">
-                            <div class="card-header bg-info text-white">
+                            <div class="card-header bg-success text-white">
                                 <h5 class="mb-0">
-                                    <i class="fas fa-tasks me-2"></i>Job Progress
+                                    <i class="fas fa-tasks me-2"></i>Job Execution Progress
                                 </h5>
                             </div>
                             <div class="card-body">
                                 <div class="progress mb-3">
-                                    <div class="progress-bar" role="progressbar" style="width: 0%"></div>
+                                    <div class="progress-bar" id="executionProgress" role="progressbar" style="width: 0%"></div>
                                 </div>
-                                <div id="progressDetails"></div>
+                                <div id="executionDetails"></div>
                             </div>
                         </div>
                     </div>
@@ -93,58 +299,86 @@
     </div>
 </div>
 
-<!-- JSON Format Example Modal -->
-<div class="modal fade" id="jsonFormatModal" tabindex="-1" aria-labelledby="jsonFormatModalLabel" aria-hidden="true">
+<!-- Wizard Help Modal -->
+<div class="modal fade" id="wizardHelpModal" tabindex="-1" aria-labelledby="wizardHelpModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="jsonFormatModalLabel">
-                    <i class="fas fa-info-circle me-2"></i>JSON File Format Example
+                <h5 class="modal-title" id="wizardHelpModalLabel">
+                    <i class="fas fa-info-circle me-2"></i>Discord Bulk Job Wizard Guide
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <p>Your JSON file should contain an array of objects with the following format:</p>
+                <h6><i class="fas fa-list me-2"></i>Step-by-Step Process</h6>
+                <ol class="list-group list-group-numbered">
+                    <li class="list-group-item d-flex justify-content-between align-items-start">
+                        <div class="ms-2 me-auto">
+                            <div class="fw-bold">Setup</div>
+                            Set number of videos and webhook type
+                        </div>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-start">
+                        <div class="ms-2 me-auto">
+                            <div class="fw-bold">Titles</div>
+                            Enter video titles (one per line)
+                        </div>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-start">
+                        <div class="ms-2 me-auto">
+                            <div class="fw-bold">Audio Set</div>
+                            Discord links with 4 audio files each
+                        </div>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-start">
+                        <div class="ms-2 me-auto">
+                            <div class="fw-bold">Background Audio</div>
+                            Direct URLs to background audio files (MP3, WAV, etc.)
+                        </div>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-start">
+                        <div class="ms-2 me-auto">
+                            <div class="fw-bold">Image Set</div>
+                            Discord links with 4 image files each + channel selection
+                        </div>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-start">
+                        <div class="ms-2 me-auto">
+                            <div class="fw-bold">Optional Second Set</div>
+                            Reuse same audio with different images (optional)
+                        </div>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-start">
+                        <div class="ms-2 me-auto">
+                            <div class="fw-bold">Execute</div>
+                            Set interval and start the job
+                        </div>
+                    </li>
+                </ol>
                 
-                <div class="mb-3">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <strong>Example JSON:</strong>
-                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="copyJsonExample()">
-                            <i class="fas fa-copy me-1"></i>Copy
-                        </button>
-                    </div>
-                    <div class="bg-light p-3 rounded border" style="background-color: #f8f9fa !important; color: #000 !important;">
-                        <pre class="mb-0" style="font-family: 'Courier New', monospace; font-size: 14px; line-height: 1.4; white-space: pre-wrap; color: #000 !important;">[
-  {
-    "name": "Job 1",
-    "message_link": "https://discord.com/channels/123456789/987654321/111222333",
-    "background_audio": "https://example.com/background1.mp3"
-  },
-  {
-    "name": "Job 2", 
-    "message_link": "https://discord.com/channels/123456789/987654321/444555666",
-    "background_audio": "https://example.com/background2.mp3"
-  }
-]</pre>
-                    </div>
+                <div class="mt-4">
+                    <h6><i class="fas fa-exclamation-triangle me-2"></i>Important Requirements</h6>
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-check text-success me-2"></i>All counts must match the number of videos</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Audio/Image Discord messages must have exactly 4 attachments</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Background audio must be direct file URLs (not Discord links)</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Discord message links must be valid URLs</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Files are processed in reverse order (last attachment first)</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Second image set reuses the same audio and background audio</li>
+                    </ul>
                 </div>
                 
-                <div class="mt-3">
-                    <p class="text-muted mb-2">Each object should have "name", "message_link", and "background_audio" fields.</p>
-                    <p class="text-muted mb-0"><strong>Requirements:</strong></p>
-                    <ul class="text-muted small">
-                        <li>File must be valid JSON format</li>
-                        <li>Each object must have "name", "message_link", and "background_audio" properties</li>
-                        <li>Values cannot be empty</li>
-                        <li>Message links must be valid Discord message URLs</li>
-                        <li>Each Discord message must have exactly 8 attachments (4 audio + 4 images)</li>
-                        <li>Background audio URL must be provided for each job</li>
-                        <li>Posts will be sent to n8n webhooks at specified intervals</li>
+                <div class="mt-4">
+                    <h6><i class="fas fa-lightbulb me-2"></i>Pro Tips</h6>
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-star text-warning me-2"></i>Use the second image set to create variations with the same audio</li>
+                        <li><i class="fas fa-star text-warning me-2"></i>Different channels allow targeting different audiences</li>
+                        <li><i class="fas fa-star text-warning me-2"></i>Adjust interval based on your content posting strategy</li>
                     </ul>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Got it!</button>
             </div>
         </div>
     </div>
@@ -152,191 +386,480 @@
 {% endblock %}
 
 {% block scripts %}
+<style>
+.step-indicator {
+    text-align: center;
+    opacity: 0.5;
+    transition: opacity 0.3s;
+}
+
+.step-indicator.active {
+    opacity: 1;
+}
+
+.step-indicator.completed {
+    opacity: 1;
+    color: #28a745;
+}
+
+.step-circle {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: #6c757d;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 8px;
+    transition: background-color 0.3s;
+}
+
+.step-indicator.active .step-circle {
+    background-color: #007bff;
+}
+
+.step-indicator.completed .step-circle {
+    background-color: #28a745;
+}
+
+.step-label {
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.wizard-step {
+    min-height: 400px;
+}
+
+.validation-error {
+    color: #dc3545;
+    font-size: 14px;
+    margin-top: 5px;
+}
+</style>
+
 <script>
-// Test modal functionality
+// Global wizard state
+let wizardData = {
+    currentStep: 1,
+    numVideos: 0,
+    webhookType: '',
+    titles: [],
+    audioLinks: [],
+    backgroundAudioLinks: [],
+    imageLinks: [],
+    imageSetChannel: '',
+    useSecondImageSet: false,
+    secondImageLinks: [],
+    secondImageSetChannel: '',
+    intervalMinutes: 5
+};
+
 document.addEventListener('DOMContentLoaded', function() {
-    const infoButton = document.querySelector('[data-bs-target="#jsonFormatModal"]');
-    if (infoButton) {
-        console.log('Info button found and modal should work');
-        
-        // Test modal opening
-        infoButton.addEventListener('click', function() {
-            console.log('Info button clicked');
-            setTimeout(function() {
-                const modal = document.getElementById('jsonFormatModal');
-                const modalContent = modal.querySelector('.modal-body');
-                console.log('Modal content:', modalContent.innerHTML);
-            }, 100);
-        });
-    } else {
-        console.error('Info button not found');
-    }
+    // Initialize wizard
+    showStep(1);
+    updateProgressBar();
     
-    // Test modal events
-    const modal = document.getElementById('jsonFormatModal');
-    if (modal) {
-        modal.addEventListener('shown.bs.modal', function() {
-            console.log('Modal shown');
-        });
-        modal.addEventListener('hidden.bs.modal', function() {
-            console.log('Modal hidden');
-        });
-    }
+    // Populate channel dropdowns
+    loadChannelOptions();
+    
+    // Add event listeners
+    setupEventListeners();
 });
 
-// Handle webhook type selection
-document.getElementById('webhook_type').addEventListener('change', function() {
-    const webhookType = this.value;
-    
-    if (webhookType === 'submit_job' || webhookType === 'nocap_job') {
-        // Load webhook URL from n8n config
-        loadWebhookUrl(webhookType);
-    } else {
-        // Clear any previous webhook URL
-        let hiddenField = document.getElementById('selected_webhook_url');
-        if (hiddenField) {
-            hiddenField.remove();
-        }
-        
-        // Clear status area
-        const statusArea = document.getElementById('statusArea');
-        statusArea.innerHTML = '';
-    }
-});
-
-// Load webhook URL from n8n config
-function loadWebhookUrl(webhookType) {
-    fetch('/api/n8n/config')
+function loadChannelOptions() {
+    fetch('/static/js/discord_channels.json')
         .then(response => response.json())
         .then(data => {
-            if (data.success && data.config && data.config.webhook_urls) {
-                const webhookUrl = data.config.webhook_urls[webhookType];
-                if (webhookUrl) {
-                    // Store the webhook URL in a hidden field for form submission
-                    let hiddenField = document.getElementById('selected_webhook_url');
-                    if (!hiddenField) {
-                        hiddenField = document.createElement('input');
-                        hiddenField.type = 'hidden';
-                        hiddenField.id = 'selected_webhook_url';
-                        hiddenField.name = 'webhook_url';
-                        document.getElementById('discordBulkJobForm').appendChild(hiddenField);
-                    }
-                    hiddenField.value = webhookUrl;
-                    
-                    // Show success message
-                    const statusArea = document.getElementById('statusArea');
-                    statusArea.innerHTML = `<div class='alert alert-info'>
-                        <i class='fas fa-info-circle me-2'></i>Using ${webhookType.replace('_', ' ')} webhook from n8n configuration
-                    </div>`;
-                } else {
-                    showError(`No webhook URL configured for ${webhookType.replace('_', ' ')}`);
-                }
-            } else {
-                showError('Failed to load n8n configuration');
-            }
-        })
-        .catch(err => {
-            showError('Error loading n8n configuration: ' + err);
-        });
-}
-
-function showError(message) {
-    const statusArea = document.getElementById('statusArea');
-    statusArea.innerHTML = `<div class='alert alert-danger'>
-        <i class='fas fa-exclamation-triangle me-2'></i>${message}
-    </div>`;
-}
-
-// Populate channel name dropdown from external JSON
-fetch('/static/js/discord_channels.json')
-    .then(response => response.json())
-    .then(data => {
-        const dropdown = document.getElementById('channel_name');
-        if (dropdown && Array.isArray(data.channels)) {
-            // Clear existing options first
-            dropdown.innerHTML = '<option value="">Select a channel...</option>';
+            const imageSetChannel = document.getElementById('imageSetChannel');
+            const secondImageSetChannel = document.getElementById('secondImageSetChannel');
             
+            if (Array.isArray(data.channels)) {
+                [imageSetChannel, secondImageSetChannel].forEach(dropdown => {
+                    if (dropdown) {
+                        dropdown.innerHTML = '<option value="">Select a channel...</option>';
             data.channels.forEach(name => {
                 const opt = document.createElement('option');
                 opt.value = name;
                 opt.textContent = name;
                 dropdown.appendChild(opt);
+                        });
+                    }
             });
         }
     })
     .catch(error => {
         console.error('Error loading channel names:', error);
     });
+}
 
-document.getElementById('discordBulkJobForm').addEventListener('submit', function(e) {
-    e.preventDefault();
+function setupEventListeners() {
+    // Step-specific listeners
+    document.getElementById('videoTitles').addEventListener('input', function() {
+        const titles = this.value.split('\n').filter(title => title.trim() !== '');
+        document.getElementById('titleCount').textContent = `${titles.length} titles`;
+    });
+
+    document.getElementById('audioLinks').addEventListener('input', function() {
+        const links = this.value.split('\n').filter(link => link.trim() !== '');
+        document.getElementById('audioCount').textContent = `${links.length} links`;
+    });
+
+    document.getElementById('backgroundAudioLinks').addEventListener('input', function() {
+        const links = this.value.split('\n').filter(link => link.trim() !== '');
+        document.getElementById('backgroundAudioCount').textContent = `${links.length} links`;
+    });
+
+    document.getElementById('imageLinks').addEventListener('input', function() {
+        const links = this.value.split('\n').filter(link => link.trim() !== '');
+        document.getElementById('imageCount').textContent = `${links.length} links`;
+    });
+
+    document.getElementById('secondImageLinks').addEventListener('input', function() {
+        const links = this.value.split('\n').filter(link => link.trim() !== '');
+        document.getElementById('secondImageCount').textContent = `${links.length} links`;
+    });
+
+    // Second image set toggle
+    document.getElementById('useSecondImageSet').addEventListener('change', function() {
+        const section = document.getElementById('secondImageSetSection');
+        section.style.display = this.checked ? 'block' : 'none';
+    });
+
+    // Start job button
+    document.getElementById('startJobBtn').addEventListener('click', function() {
+        startJob();
+    });
+}
+
+function showStep(step) {
+    // Hide all steps
+    document.querySelectorAll('.wizard-step').forEach(stepEl => {
+        stepEl.style.display = 'none';
+    });
     
-    var formData = new FormData(this);
-    var statusArea = document.getElementById('statusArea');
-    var spinner = document.getElementById('loadingSpinner');
-    var jobProgress = document.getElementById('jobProgress');
+    // Show current step
+    document.getElementById(`step${step}`).style.display = 'block';
     
-    // Clear previous errors
-    document.getElementById('json_file_error').textContent = '';
-    statusArea.innerHTML = '';
+    // Update step indicators
+    document.querySelectorAll('.step-indicator').forEach((indicator, index) => {
+        const stepNum = index + 1;
+        indicator.classList.remove('active', 'completed');
+        
+        if (stepNum === step) {
+            indicator.classList.add('active');
+        } else if (stepNum < step) {
+            indicator.classList.add('completed');
+        }
+    });
     
-    // Validate webhook selection
+    wizardData.currentStep = step;
+    updateProgressBar();
+    
+    // Update job summary if on step 7
+    if (step === 7) {
+        updateJobSummary();
+    }
+}
+
+function updateProgressBar() {
+    const progress = (wizardData.currentStep / 7) * 100;
+    document.getElementById('wizardProgress').style.width = `${progress}%`;
+}
+
+function nextStep(currentStep) {
+    if (validateStep(currentStep)) {
+        showStep(currentStep + 1);
+    }
+}
+
+function prevStep(currentStep) {
+    showStep(currentStep - 1);
+}
+
+function validateStep(step) {
+    clearErrors();
+    
+    switch(step) {
+        case 1:
+            const numVideos = parseInt(document.getElementById('numVideos').value);
     const webhookType = document.getElementById('webhook_type').value;
+            
+            if (!numVideos || numVideos < 1) {
+                showError('Please enter a valid number of videos.');
+                return false;
+            }
     if (!webhookType) {
-        showError('Please select a webhook type');
-        return;
-    }
-    
-    // Ensure webhook type is valid
-    if (webhookType !== 'submit_job' && webhookType !== 'nocap_job') {
-        showError('Please select a valid webhook type');
-        return;
-    }
+                showError('Please select a webhook type.');
+                return false;
+            }
+            
+            wizardData.numVideos = numVideos;
+            wizardData.webhookType = webhookType;
+            return true;
 
-    var channelName = document.getElementById('channel_name').value;
-    if (!channelName) {
-        showError('Please select a channel name.');
-        return;
+        case 2:
+            const titlesText = document.getElementById('videoTitles').value.trim();
+            const titles = titlesText.split('\n').filter(title => title.trim() !== '');
+            
+            if (titles.length !== wizardData.numVideos) {
+                showError(`You must enter exactly ${wizardData.numVideos} titles. Currently have ${titles.length}.`, 'titlesError');
+                return false;
+            }
+            
+            wizardData.titles = titles;
+            return true;
+
+        case 3:
+            const audioLinksText = document.getElementById('audioLinks').value.trim();
+            const audioLinks = audioLinksText.split('\n').filter(link => link.trim() !== '');
+            
+            if (audioLinks.length !== wizardData.numVideos) {
+                showError(`You must enter exactly ${wizardData.numVideos} audio links. Currently have ${audioLinks.length}.`, 'audioError');
+                return false;
+            }
+            
+            // Validate Discord link format
+            for (let link of audioLinks) {
+                if (!isValidDiscordLink(link)) {
+                    showError('All links must be valid Discord message URLs.', 'audioError');
+                    return false;
+                }
+            }
+            
+            wizardData.audioLinks = audioLinks;
+            return true;
+
+        case 4:
+            const backgroundAudioLinksText = document.getElementById('backgroundAudioLinks').value.trim();
+            const backgroundAudioLinks = backgroundAudioLinksText.split('\n').filter(link => link.trim() !== '');
+            
+            if (backgroundAudioLinks.length !== wizardData.numVideos) {
+                showError(`You must enter exactly ${wizardData.numVideos} background audio URLs. Currently have ${backgroundAudioLinks.length}.`, 'backgroundAudioError');
+                return false;
+            }
+            
+            // Validate audio URL format
+            for (let link of backgroundAudioLinks) {
+                if (!isValidAudioUrl(link)) {
+                    showError('All links must be valid audio file URLs.', 'backgroundAudioError');
+                    return false;
+                }
+            }
+            
+            wizardData.backgroundAudioLinks = backgroundAudioLinks;
+            return true;
+
+        case 5:
+            const imageLinksText = document.getElementById('imageLinks').value.trim();
+            const imageLinks = imageLinksText.split('\n').filter(link => link.trim() !== '');
+            const imageSetChannel = document.getElementById('imageSetChannel').value;
+            
+            if (imageLinks.length !== wizardData.numVideos) {
+                showError(`You must enter exactly ${wizardData.numVideos} image links. Currently have ${imageLinks.length}.`, 'imageError');
+                return false;
+            }
+            
+            if (!imageSetChannel) {
+                showError('Please select a channel for the image set.');
+                return false;
+            }
+            
+            // Validate Discord link format
+            for (let link of imageLinks) {
+                if (!isValidDiscordLink(link)) {
+                    showError('All links must be valid Discord message URLs.', 'imageError');
+                    return false;
+                }
+            }
+            
+            wizardData.imageLinks = imageLinks;
+            wizardData.imageSetChannel = imageSetChannel;
+            return true;
+
+        case 6:
+            const useSecondImageSet = document.getElementById('useSecondImageSet').checked;
+            wizardData.useSecondImageSet = useSecondImageSet;
+            
+            if (useSecondImageSet) {
+                const secondImageLinksText = document.getElementById('secondImageLinks').value.trim();
+                const secondImageLinks = secondImageLinksText.split('\n').filter(link => link.trim() !== '');
+                const secondImageSetChannel = document.getElementById('secondImageSetChannel').value;
+                
+                if (secondImageLinks.length !== wizardData.numVideos) {
+                    showError(`You must enter exactly ${wizardData.numVideos} second image links. Currently have ${secondImageLinks.length}.`, 'secondImageError');
+                    return false;
+                }
+                
+                if (!secondImageSetChannel) {
+                    showError('Please select a channel for the second image set.');
+                    return false;
+                }
+                
+                // Validate Discord link format
+                for (let link of secondImageLinks) {
+                    if (!isValidDiscordLink(link)) {
+                        showError('All links must be valid Discord message URLs.', 'secondImageError');
+                        return false;
+                    }
+                }
+                
+                wizardData.secondImageLinks = secondImageLinks;
+                wizardData.secondImageSetChannel = secondImageSetChannel;
+            }
+            return true;
+
+        case 7:
+            const intervalMinutes = parseInt(document.getElementById('intervalMinutes').value);
+            if (!intervalMinutes || intervalMinutes < 1) {
+                showError('Please enter a valid interval (minimum 1 minute).');
+                return false;
+            }
+            
+            wizardData.intervalMinutes = intervalMinutes;
+            return true;
     }
-    formData.append('channel_name', channelName);
     
-    spinner.style.display = 'block';
-    jobProgress.style.display = 'none';
+    return true;
+}
+
+function isValidDiscordLink(link) {
+    const discordUrlPattern = /^https:\/\/(discord|discordapp)\.com\/channels\/\d+\/\d+\/\d+$/;
+    return discordUrlPattern.test(link.trim());
+}
+
+function isValidAudioUrl(url) {
+    try {
+        const urlObj = new URL(url.trim());
+        // Check if it's a valid HTTP/HTTPS URL
+        if (!['http:', 'https:'].includes(urlObj.protocol)) {
+            return false;
+        }
+        
+        // Check if it has a valid audio file extension or is a known hosting service
+        const audioExtensions = ['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.flac'];
+        const pathname = urlObj.pathname.toLowerCase();
+        
+        // Check for direct audio file extensions
+        if (audioExtensions.some(ext => pathname.endsWith(ext))) {
+            return true;
+        }
+        
+        // Check for known hosting services that don't always show extensions
+        const hostname = urlObj.hostname.toLowerCase();
+        const knownHosts = ['drive.google.com', 'dropbox.com', 'soundcloud.com', 
+                           'onedrive.live.com', 'mega.nz', 'mediafire.com'];
+        
+        if (knownHosts.some(host => hostname.includes(host))) {
+            return true;
+        }
+        
+        // If it's a general URL without obvious audio extension, we'll allow it
+        // but it might fail during actual processing
+        return true;
+        
+    } catch (e) {
+        return false;
+    }
+}
+
+function showError(message, elementId = null) {
+    if (elementId) {
+        document.getElementById(elementId).textContent = message;
+    } else {
+        alert(message); // Fallback for general errors
+    }
+}
+
+function clearErrors() {
+    document.querySelectorAll('.validation-error').forEach(el => {
+        el.textContent = '';
+    });
+}
+
+function updateJobSummary() {
+    const totalJobs = wizardData.useSecondImageSet ? wizardData.numVideos * 2 : wizardData.numVideos;
+    const totalTimeMinutes = (totalJobs - 1) * wizardData.intervalMinutes;
+    const hours = Math.floor(totalTimeMinutes / 60);
+    const minutes = totalTimeMinutes % 60;
     
-    fetch('/discord-bulk-job', {
+    const summary = `
+        <div class="row">
+            <div class="col-md-6">
+                <strong>Number of Videos:</strong> ${wizardData.numVideos}<br>
+                <strong>Webhook Type:</strong> ${wizardData.webhookType.replace('_', ' ')}<br>
+                <strong>Interval:</strong> ${wizardData.intervalMinutes} minutes
+            </div>
+            <div class="col-md-6">
+                <strong>Total Jobs:</strong> ${totalJobs}<br>
+                <strong>Image Sets:</strong> ${wizardData.useSecondImageSet ? 2 : 1}<br>
+                <strong>Estimated Time:</strong> ${hours}h ${minutes}m
+            </div>
+        </div>
+        <div class="mt-2">
+            <strong>Channels:</strong> ${wizardData.imageSetChannel}${wizardData.useSecondImageSet ? `, ${wizardData.secondImageSetChannel}` : ''}
+        </div>
+    `;
+    
+    document.getElementById('jobSummary').innerHTML = summary;
+}
+
+function startJob() {
+    // Hide wizard and show execution area
+    document.querySelectorAll('.wizard-step').forEach(step => {
+        step.style.display = 'none';
+    });
+    
+    document.getElementById('jobExecution').style.display = 'block';
+    
+    // Prepare job data
+    const jobData = {
+        numVideos: wizardData.numVideos,
+        webhookType: wizardData.webhookType,
+        titles: wizardData.titles,
+        audioLinks: wizardData.audioLinks,
+        backgroundAudioLinks: wizardData.backgroundAudioLinks,
+        imageLinks: wizardData.imageLinks,
+        imageSetChannel: wizardData.imageSetChannel,
+        useSecondImageSet: wizardData.useSecondImageSet,
+        secondImageLinks: wizardData.secondImageLinks,
+        secondImageSetChannel: wizardData.secondImageSetChannel,
+        intervalMinutes: wizardData.intervalMinutes
+    };
+    
+    // Send job to backend
+    fetch('/discord-bulk-job-wizard', {
         method: 'POST',
-        body: formData
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(jobData)
     })
     .then(response => response.json())
     .then(data => {
-        spinner.style.display = 'none';
-        
         if (data.success) {
-            statusArea.innerHTML = `<div class='alert alert-success'>
-                <i class='fas fa-check-circle me-2'></i>${data.message}
-                <br><small class="text-muted">Job ID: ${data.job_id}</small>
-            </div>`;
-            
-            // Show progress area
-            jobProgress.style.display = 'block';
-            updateJobProgress(data.job_id);
+            updateExecutionProgress(data.job_id);
         } else {
-            statusArea.innerHTML = `<div class='alert alert-danger'>
-                <i class='fas fa-exclamation-triangle me-2'></i>${data.message}
-            </div>`;
+            document.getElementById('executionDetails').innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>${data.message}
+                </div>
+            `;
         }
     })
     .catch(err => {
-        spinner.style.display = 'none';
-        statusArea.innerHTML = `<div class='alert alert-danger'>
-            <i class='fas fa-exclamation-triangle me-2'></i>Error: ${err}
-        </div>`;
+        document.getElementById('executionDetails').innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle me-2"></i>Error starting job: ${err}
+            </div>
+        `;
     });
-});
+}
 
-function updateJobProgress(jobId) {
-    const progressBar = document.querySelector('.progress-bar');
-    const progressDetails = document.getElementById('progressDetails');
+function updateExecutionProgress(jobId) {
+    const progressBar = document.getElementById('executionProgress');
+    const executionDetails = document.getElementById('executionDetails');
     
     function checkProgress() {
         fetch(`/api/discord-bulk-job-status/${jobId}`)
@@ -347,22 +870,38 @@ function updateJobProgress(jobId) {
                     progressBar.style.width = progress + '%';
                     progressBar.textContent = `${data.completed}/${data.total}`;
                     
-                    progressDetails.innerHTML = `
+                    executionDetails.innerHTML = `
                         <div class="row">
-                            <div class="col-md-6">
+                            <div class="col-md-4">
                                 <strong>Completed:</strong> ${data.completed}/${data.total}
                             </div>
-                            <div class="col-md-6">
-                                <strong>Next Post:</strong> ${data.next_post_time || 'N/A'}
+                            <div class="col-md-4">
+                                <strong>Failed:</strong> ${data.failed || 0}
+                            </div>
+                            <div class="col-md-4">
+                                <strong>Status:</strong> ${data.status}
                             </div>
                         </div>
                         <div class="mt-2">
-                            <strong>Status:</strong> ${data.status}
+                            <strong>Next Post:</strong> ${data.next_post_time || 'N/A'}
                         </div>
+                        ${data.errors && data.errors.length > 0 ? `
+                            <div class="alert alert-warning mt-2">
+                                <strong>Errors:</strong><br>
+                                ${data.errors.join('<br>')}
+                            </div>
+                        ` : ''}
                     `;
                     
-                    if (data.completed < data.total) {
+                    if (data.status === 'running' && data.completed < data.total) {
                         setTimeout(checkProgress, 10000); // Check every 10 seconds
+                    } else if (data.status === 'completed') {
+                        progressBar.classList.add('bg-success');
+                        executionDetails.innerHTML += `
+                            <div class="alert alert-success mt-2">
+                                <i class="fas fa-check-circle me-2"></i>Job completed successfully!
+                            </div>
+                        `;
                     }
                 }
             })
@@ -373,38 +912,5 @@ function updateJobProgress(jobId) {
     
     checkProgress();
 }
-
-// Copy JSON example function
-function copyJsonExample() {
-    const jsonExample = `[
-  {
-    "name": "Job 1",
-    "message_link": "https://discord.com/channels/123456789/987654321/111222333"
-  },
-  {
-    "name": "Job 2", 
-    "message_link": "https://discord.com/channels/123456789/987654321/444555666"
-  }
-]`;
-    
-    navigator.clipboard.writeText(jsonExample).then(function() {
-        // Show success feedback
-        const copyBtn = document.querySelector('[onclick="copyJsonExample()"]');
-        const originalText = copyBtn.innerHTML;
-        copyBtn.innerHTML = '<i class="fas fa-check me-1"></i>Copied!';
-        copyBtn.classList.remove('btn-outline-primary');
-        copyBtn.classList.add('btn-success');
-        
-        setTimeout(function() {
-            copyBtn.innerHTML = originalText;
-            copyBtn.classList.remove('btn-success');
-            copyBtn.classList.add('btn-outline-primary');
-        }, 2000);
-    }).catch(function(err) {
-        console.error('Failed to copy: ', err);
-        alert('Failed to copy to clipboard. Please select and copy manually.');
-    });
-}
-
 </script>
 {% endblock %} 
