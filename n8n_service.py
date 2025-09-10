@@ -72,7 +72,7 @@ class N8nService:
             "nocap_job": self.nocap_webhook_url
         }
     
-    def submit_job(self, user: str, images: List[str], audios: List[str], background_audio: str = None) -> Tuple[bool, str, Optional[int]]:
+    def submit_job(self, user: str, images: List[str], audios: List[str], background_audio: str = None, aud_speed: float = 1.0) -> Tuple[bool, str, Optional[int]]:
         """Submit a job to the n8n webhook. Returns (success, message, status_code)."""
         if not self.submit_webhook_url:
             return False, "n8n webhook URL not configured", None
@@ -93,13 +93,15 @@ class N8nService:
                 "user": user,
                 "images": images,
                 "audios": audios,
-                "background_audio": background_audio
+                "background_audio": background_audio,
+                "aud_speed": aud_speed
             }
             
             logger.info(f"Submitting job for user: {user}")
             logger.info(f"Images: {images}")
             logger.info(f"Audios: {audios}")
             logger.info(f"Background audio: {background_audio}")
+            logger.info(f"Audio speed: {aud_speed}x")
             
             response = requests.post(
                 self.submit_webhook_url,

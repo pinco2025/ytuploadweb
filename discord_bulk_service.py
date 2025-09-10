@@ -78,9 +78,9 @@ class DiscordBulkJobService:
 
     def create_wizard_bulk_job(self, num_videos: int, webhook_url: str, webhook_type: str, 
                               titles: List[str], audio_links: List[str], background_audio_links: List[str],
-                              image_links: List[str], image_set_channel: str, use_second_image_set: bool = False,
-                              second_image_links: List[str] = None, second_image_set_channel: str = '',
-                              interval_minutes: int = 5) -> Tuple[bool, str, str]:
+                              audio_speed: float, image_links: List[str], image_set_channel: str, 
+                              use_second_image_set: bool = False, second_image_links: List[str] = None, 
+                              second_image_set_channel: str = '', interval_minutes: int = 5) -> Tuple[bool, str, str]:
         """
         Create a new wizard-based bulk job with separate audio and image sets.
         
@@ -91,6 +91,7 @@ class DiscordBulkJobService:
             titles: List of video titles
             audio_links: List of Discord message links containing audio files
             background_audio_links: List of Discord message links containing background audio files
+            audio_speed: Audio playback speed (1.0 to 2.0)
             image_links: List of Discord message links containing image files
             image_set_channel: Channel name for first image set
             use_second_image_set: Whether to create a second image set with same audio
@@ -126,6 +127,7 @@ class DiscordBulkJobService:
                 'titles': titles,
                 'audio_links': audio_links,
                 'background_audio_links': background_audio_links,
+                'audio_speed': audio_speed,
                 'image_links': image_links,
                 'image_set_channel': image_set_channel,
                 'use_second_image_set': use_second_image_set,
@@ -253,6 +255,7 @@ class DiscordBulkJobService:
                         'images': image_attachments['images'],  # 4 images from Discord (reversed)
                         'audios': audio_attachments['audios'],  # 4 audios from Discord (reversed)
                         'background_audio': background_audio_url,  # Single background audio URL
+                        'aud_speed': job_data['audio_speed'],  # Audio speed multiplier
                         'channel_name': channel_name
                     }
                     

@@ -220,6 +220,7 @@ if app.config['ENABLE_DISCORD_JOB']:
             titles = data.get('titles', [])
             audio_links = data.get('audioLinks', [])
             background_audio_links = data.get('backgroundAudioLinks', [])
+            audio_speed = data.get('audioSpeed', 1.0)
             image_links = data.get('imageLinks', [])
             image_set_channel = data.get('imageSetChannel', '').strip()
             use_second_image_set = data.get('useSecondImageSet', False)
@@ -299,6 +300,14 @@ if app.config['ENABLE_DISCORD_JOB']:
                 except Exception as e:
                     return jsonify({'success': False, 'message': f'Invalid background audio URL {i+1}: {bg_audio_url}'}), 400
             
+            # Validate audio speed
+            try:
+                audio_speed = float(audio_speed)
+                if audio_speed < 1.0 or audio_speed > 2.0:
+                    return jsonify({'success': False, 'message': 'Audio speed must be between 1.0 and 2.0'}), 400
+            except (ValueError, TypeError):
+                return jsonify({'success': False, 'message': 'Invalid audio speed value'}), 400
+            
             # Create wizard job using the new wizard service
             success, message, job_id = discord_bulk_service.create_wizard_bulk_job(
                 num_videos=num_videos,
@@ -307,6 +316,7 @@ if app.config['ENABLE_DISCORD_JOB']:
                 titles=titles,
                 audio_links=audio_links,
                 background_audio_links=background_audio_links,
+                audio_speed=audio_speed,
                 image_links=image_links,
                 image_set_channel=image_set_channel,
                 use_second_image_set=use_second_image_set,
@@ -1058,7 +1068,7 @@ if app.config['ENABLE_DISCORD_JOB']:
             audios = [audios[3], audios[2], audios[1], audios[0]]
 
             # Submit job to Discord webhook
-            success, message, status_code = n8n_service.submit_job(user, images, audios, background_audio)
+            success, message, status_code = n8n_service.submit_job(user, images, audios, background_audio, 1.0)
             
             if success:
                 return jsonify({"message": message}), 200

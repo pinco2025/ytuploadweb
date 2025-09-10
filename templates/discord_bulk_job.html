@@ -122,6 +122,24 @@
                             <div class="validation-error" id="audioError"></div>
                         </div>
                         
+                        <div class="mb-3">
+                            <label for="audioSpeed" class="form-label">
+                                <i class="fas fa-tachometer-alt me-1"></i>Audio Speed
+                            </label>
+                            <div class="row align-items-center">
+                                <div class="col-2">
+                                    <span class="badge bg-secondary">1x</span>
+                                </div>
+                                <div class="col-8">
+                                    <input type="range" class="form-range" id="audioSpeed" min="1" max="2" step="0.1" value="1">
+                                </div>
+                                <div class="col-2">
+                                    <span class="badge bg-primary" id="speedValue">1.0x</span>
+                                </div>
+                            </div>
+                            <div class="form-text">Adjust the playback speed of audio files (1x = normal speed, 2x = double speed)</div>
+                        </div>
+                        
                         <div class="d-flex justify-content-between">
                             <button type="button" class="btn btn-secondary" onclick="prevStep(3)">
                                 <i class="fas fa-arrow-left me-1"></i> Previous
@@ -448,6 +466,7 @@ let wizardData = {
     titles: [],
     audioLinks: [],
     backgroundAudioLinks: [],
+    audioSpeed: 1.0,
     imageLinks: [],
     imageSetChannel: '',
     useSecondImageSet: false,
@@ -519,6 +538,13 @@ function setupEventListeners() {
     document.getElementById('secondImageLinks').addEventListener('input', function() {
         const links = this.value.split('\n').filter(link => link.trim() !== '');
         document.getElementById('secondImageCount').textContent = `${links.length} links`;
+    });
+
+    // Audio speed slider
+    document.getElementById('audioSpeed').addEventListener('input', function() {
+        const speed = parseFloat(this.value);
+        document.getElementById('speedValue').textContent = `${speed.toFixed(1)}x`;
+        wizardData.audioSpeed = speed;
     });
 
     // Second image set toggle
@@ -629,6 +655,11 @@ function validateStep(step) {
             }
             
             wizardData.audioLinks = audioLinks;
+            
+            // Get audio speed value
+            const audioSpeed = parseFloat(document.getElementById('audioSpeed').value);
+            wizardData.audioSpeed = audioSpeed;
+            
             return true;
 
         case 4:
@@ -789,6 +820,7 @@ function updateJobSummary() {
             <div class="col-md-6">
                 <strong>Number of Videos:</strong> ${wizardData.numVideos}<br>
                 <strong>Webhook Type:</strong> ${wizardData.webhookType.replace('_', ' ')}<br>
+                <strong>Audio Speed:</strong> ${wizardData.audioSpeed}x<br>
                 <strong>Interval:</strong> ${wizardData.intervalMinutes} minutes
             </div>
             <div class="col-md-6">
@@ -820,6 +852,7 @@ function startJob() {
         titles: wizardData.titles,
         audioLinks: wizardData.audioLinks,
         backgroundAudioLinks: wizardData.backgroundAudioLinks,
+        audioSpeed: wizardData.audioSpeed,
         imageLinks: wizardData.imageLinks,
         imageSetChannel: wizardData.imageSetChannel,
         useSecondImageSet: wizardData.useSecondImageSet,
