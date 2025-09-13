@@ -147,6 +147,14 @@
     tdStatus.appendChild(statusBadge);
     tr.appendChild(tdStatus);
 
+    const tdActions = document.createElement('td');
+    const resendBtn = document.createElement('button');
+    resendBtn.className = 'btn btn-sm btn-outline-primary';
+    resendBtn.innerHTML = '<i class="fas fa-redo me-1"></i>Resend';
+    resendBtn.addEventListener('click', () => resendRow(row.serial_number, tr));
+    tdActions.appendChild(resendBtn);
+    tr.appendChild(tdActions);
+
     return tr;
   }
 
@@ -374,6 +382,66 @@
     badge.textContent = 'complete';
     // Recompute button states after updating status
     recomputeStatuses();
+  }
+
+  function resendRow(serialNumber, tr) {
+    if (jobActive) {
+      showToast('A job is already in progress. Please wait for it to complete.', 'warning');
+      return;
+    }
+
+    const audioInput = tr.querySelector('td:nth-child(2) input');
+    const imageInput = tr.querySelector('td:nth-child(3) input');
+    const audioUrl = audioInput.value.trim();
+    const imageUrl = imageInput.value.trim();
+
+    if (!audioUrl || !imageUrl) {
+      showToast(`Row ${serialNumber}: Both audio and image URLs are required`, 'error');
+      return;
+    }
+
+    if (!isValidUrl(audioUrl) || !isValidUrl(imageUrl)) {
+      showToast(`Row ${serialNumber}: Please enter valid URLs`, 'error');
+      return;
+    }
+
+    const projectName = getProjectNameById(currentProjectId);
+    if (!projectName) {
+      showToast('No project selected', 'error');
+      return;
+    }
+
+    const payload = {
+      project_name: projectName,
+      serial_number: serialNumber,
+      audio_url: audioUrl,
+      image_url: imageUrl
+    };
+
+    // Show loading state on the resend button
+    const resendBtn = tr.querySelector('td:nth-child(5) button');
+    const originalText = resendBtn.innerHTML;
+    resendBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Sending...';
+    resendBtn.disabled = true;
+
+    console.log(`Resending row ${serialNumber}:`, payload);
+    
+    postLongformPayload(payload)
+      .then(() => {
+        console.log(`Row ${serialNumber} resent successfully`);
+        showToast(`Row ${serialNumber} sent successfully`, 'success');
+        updateRowStatusToComplete(serialNumber);
+        saveRows();
+      })
+      .catch((e) => {
+        console.error(`Row ${serialNumber} resend failed:`, e);
+        showToast(`Row ${serialNumber} failed: ${e.message}`, 'error');
+      })
+      .finally(() => {
+        // Restore button state
+        resendBtn.innerHTML = originalText;
+        resendBtn.disabled = false;
+      });
   }
 
   function postLongformPayload(payload) {
