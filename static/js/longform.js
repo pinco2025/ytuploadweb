@@ -362,6 +362,7 @@
         }
       }
     });
+    console.log(`Found ${rows.length} remaining rows to process:`, rows);
     return rows;
   }
 
@@ -404,41 +405,45 @@
         if (!res.success) { showToast(res.error || 'Failed to start job lock', 'error'); return; }
         jobActive = true; jobEndsAt = res.ends_at; setButtonsDisabled(true);
         if (!jobTimerId) jobTimerId = setInterval(updateJobCountdownUI, 1000); updateJobCountdownUI();
-      }).catch(() => {});
-
-    let i = 0;
-    const sendNext = () => {
-      if (i >= remaining.length) {
-        recomputeStatuses();
-        saveRows();
-        showToast('All remaining rows dispatched', 'success');
-        return;
-      }
-      const row = remaining[i];
-      const payload = {
-        project_name: projectName,
-        serial_number: row.serial_number,
-        audio_url: row.audio_url,
-        image_url: row.image_url // Discord message link with 5 attachments (order 5..1)
-      };
-      postLongformPayload(payload)
-        .then(() => {
-          updateRowStatusToComplete(row.serial_number);
-          saveRows();
-        })
-        .catch((e) => {
-          showToast(`Row ${row.serial_number} failed: ${e.message}`, 'error');
-        })
-        .finally(() => {
-          i += 1;
-          if (minutes === 0) {
-            sendNext();
-          } else {
-            setTimeout(sendNext, minutes * 60 * 1000);
+        
+        // Start sending rows only after job lock is successfully established
+        let i = 0;
+        const sendNext = () => {
+          if (i >= remaining.length) {
+            recomputeStatuses();
+            saveRows();
+            showToast('All remaining rows dispatched', 'success');
+            return;
           }
-        });
-    };
-    sendNext();
+          const row = remaining[i];
+          console.log(`Sending row ${i + 1}/${remaining.length}: serial_number=${row.serial_number}`);
+          const payload = {
+            project_name: projectName,
+            serial_number: row.serial_number,
+            audio_url: row.audio_url,
+            image_url: row.image_url // Discord message link with 5 attachments (order 5..1)
+          };
+          postLongformPayload(payload)
+            .then(() => {
+              console.log(`Row ${row.serial_number} sent successfully`);
+              updateRowStatusToComplete(row.serial_number);
+              saveRows();
+            })
+            .catch((e) => {
+              console.error(`Row ${row.serial_number} failed:`, e);
+              showToast(`Row ${row.serial_number} failed: ${e.message}`, 'error');
+            })
+            .finally(() => {
+              i += 1;
+              if (minutes === 0) {
+                sendNext();
+              } else {
+                setTimeout(sendNext, minutes * 60 * 1000);
+              }
+            });
+        };
+        sendNext();
+      }).catch(() => {});
   });
 
   // Compile button: send project name to compile webhook
