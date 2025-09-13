@@ -52,13 +52,22 @@
       }
       projectSelect.value = currentProjectId;
       deleteBtn.disabled = false;
+      // Initially disable buttons until rows are loaded and status is computed
+      compileBtn.disabled = true;
+      generateBtn.disabled = true;
       loadRows(currentProjectId);
     }
   }
 
   function setButtonsDisabled(disabled) {
     generateBtn.disabled = disabled || generateBtn.disabled;
-    compileBtn.disabled = disabled || compileBtn.disabled;
+    // For compile button, we need to respect both the disabled state AND the complete status requirement
+    if (disabled) {
+      compileBtn.disabled = true;
+    } else {
+      // Recompute status to check if all rows are complete
+      recomputeStatuses();
+    }
   }
 
   function updateJobCountdownUI() {
@@ -159,15 +168,17 @@
   function recomputeStatuses() {
     // Preserve displayed status; only update button enablement
     const rows = tableBody.querySelectorAll('tr');
-    let filledCount = 0;
+    let completeCount = 0;
     let hasIncomplete = false;
     rows.forEach(tr => {
       const badge = tr.querySelector('td:nth-child(4) .badge');
-      const isFilled = isRowComplete(tr);
-      if (isFilled) filledCount += 1;
-      if (badge && badge.textContent.trim().toLowerCase() === 'incomplete') hasIncomplete = true;
+      const status = badge ? badge.textContent.trim().toLowerCase() : 'incomplete';
+      if (status === 'complete') completeCount += 1;
+      if (status === 'incomplete') hasIncomplete = true;
     });
-    compileBtn.disabled = !(rows.length === 14 && filledCount === 14);
+    // Compile button is only enabled when ALL rows have "complete" status
+    compileBtn.disabled = !(rows.length === 14 && completeCount === 14);
+    // Generate button is enabled when there are incomplete rows
     generateBtn.disabled = !hasIncomplete;
   }
 
@@ -318,10 +329,6 @@
     if (currentProjectId) loadRows(currentProjectId);
   });
 
-  compileBtn.addEventListener('click', () => {
-    // Placeholder; backend hookup later
-    showToast('Compile triggered (stub).', 'info');
-  });
 
   generateBtn.addEventListener('click', () => {
     if (jobActive) { showToast('A job is already in progress.', 'info'); return; }
@@ -364,6 +371,8 @@
     const badge = tr.querySelector('td:nth-child(4) .badge');
     badge.className = 'badge bg-success';
     badge.textContent = 'complete';
+    // Recompute button states after updating status
+    recomputeStatuses();
   }
 
   function postLongformPayload(payload) {
@@ -437,6 +446,20 @@
     if (jobActive) { showToast('A job is already in progress.', 'info'); return; }
     const projectName = getProjectNameById(currentProjectId);
     if (!projectName) { showToast('No project selected', 'error'); return; }
+    
+    // Check if all rows are complete
+    const rows = tableBody.querySelectorAll('tr');
+    let completeCount = 0;
+    rows.forEach(tr => {
+      const badge = tr.querySelector('td:nth-child(4) .badge');
+      const status = badge ? badge.textContent.trim().toLowerCase() : 'incomplete';
+      if (status === 'complete') completeCount += 1;
+    });
+    
+    if (completeCount !== 14) {
+      showToast(`Cannot compile: ${14 - completeCount} rows are still incomplete. All rows must be complete before compiling.`, 'error');
+      return;
+    }
     
     const seconds = 12 * 60; // 12 minute lock
     fetch('/api/longform/start-job', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ seconds, reason: 'compile' }) })
