@@ -34,6 +34,45 @@ from discord_bulk_service import discord_bulk_service
 import atexit
 import shutil
 import re
+import threading
+from datetime import timedelta
+
+# --- Long Form Jobs storage ---
+LONGFORM_DB_PATH = os.path.join(os.getcwd(), 'long_form_projects.json')
+_longform_lock = threading.Lock()
+_job_lock = threading.Lock()
+LONGFORM_JOB_STATE = {"active": False, "ends_at": None, "reason": ""}
+
+def _load_longform_db():
+    try:
+        if not os.path.exists(LONGFORM_DB_PATH):
+            return {"projects": []}
+        with open(LONGFORM_DB_PATH, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Failed to load long form DB: {e}")
+        return {"projects": []}
+
+def _save_longform_db(data):
+    try:
+        os.makedirs(os.path.dirname(LONGFORM_DB_PATH), exist_ok=True)
+        with open(LONGFORM_DB_PATH, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2)
+        return True
+    except Exception as e:
+        logger.error(f"Failed to save long form DB: {e}")
+        return False
+
+def _create_empty_rows(num_rows: int = 14):
+    rows = []
+    for i in range(1, num_rows + 1):
+        rows.append({
+            "serial_number": i,
+            "audio_url": "",
+            "image_url": "",
+            "status": "incomplete"
+        })
+    return rows
 
 # In-memory store for bulk upload results (cleared on app restart)
 BULK_RESULTS = {}
@@ -1006,7 +1045,7 @@ def get_n8n_config():
 
 @app.route('/api/n8n/config', methods=['POST'])
 def update_n8n_config():
-    """Update n8n webhook URLs. Accepts a single ngrok_base_url and generates both webhook URLs."""
+    """Update n8n webhook URLs. Accepts a single ngrok_base_url and generates all 4 webhook URLs unanimously."""
     try:
         data = request.get_json()
         if not data:
@@ -1014,16 +1053,16 @@ def update_n8n_config():
         base_url = data.get('ngrok_base_url')
         if not base_url or not base_url.startswith('http'):
             return jsonify({"error": "A valid ngrok base URL is required."}), 400
-        # Remove trailing slash if present
-        if base_url.endswith('/'):
-            base_url = base_url[:-1]
-        submit_url = f"{base_url}/webhook/bgaud"
-        nocap_url = f"{base_url}/webhook/back"
-        success = n8n_service.update_webhook_urls(submit_url, nocap_url)
+        
+        # Use the new unanimous URL generation method
+        success = n8n_service.update_webhook_urls_from_base(base_url)
         if success:
+            # Get the generated URLs to return them
+            urls = n8n_service.get_current_urls()
             return jsonify({
                 "success": True,
-                "message": "n8n webhook URLs updated successfully"
+                "message": "All n8n webhook URLs updated unanimously",
+                "generated_urls": urls
             })
         else:
             return jsonify({
@@ -1541,6 +1580,244 @@ def bulk_uploader_result(request_id):
         flash('Results expired or not found.', 'error')
         return redirect(url_for('bulk_uploader'))
     return render_template('bulk_uploader_result.html', results=results, config=app.config, service=service)
+
+# ---------------- Long Form Jobs UI and APIs ----------------
+@app.route('/long-form-jobs', methods=['GET'])
+def long_form_jobs_page():
+    try:
+        return render_template('long_form_jobs.html', config=app.config)
+    except Exception as e:
+        logger.error(f"Error loading long form jobs page: {e}")
+        abort(500)
+
+@app.route('/api/longform/projects', methods=['GET', 'POST'])
+def longform_projects():
+    try:
+        with _longform_lock:
+            db = _load_longform_db()
+            if request.method == 'GET':
+                return jsonify({"success": True, "projects": db.get('projects', [])})
+            data = request.get_json() or {}
+            name = (data.get('name') or '').strip()
+            if not name:
+                return jsonify({"success": False, "error": "Project name is required"}), 400
+            # prevent duplicates (case-insensitive)
+            if any(p.get('name', '').lower() == name.lower() for p in db.get('projects', [])):
+                return jsonify({"success": False, "error": "Project with this name already exists"}), 400
+            project_id = uuid.uuid4().hex
+            project = {"id": project_id, "name": name, "rows": _create_empty_rows()}
+            db.setdefault('projects', []).append(project)
+            if not _save_longform_db(db):
+                return jsonify({"success": False, "error": "Failed to save project"}), 500
+            return jsonify({"success": True, "project": project})
+    except Exception as e:
+        logger.error(f"Error in longform_projects: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/longform/projects/<project_id>', methods=['DELETE'])
+def delete_longform_project(project_id):
+    try:
+        with _longform_lock:
+            db = _load_longform_db()
+            projects = db.get('projects', [])
+            new_projects = [p for p in projects if p.get('id') != project_id]
+            if len(new_projects) == len(projects):
+                return jsonify({"success": False, "error": "Project not found"}), 404
+            db['projects'] = new_projects
+            if not _save_longform_db(db):
+                return jsonify({"success": False, "error": "Failed to delete project"}), 500
+            return jsonify({"success": True})
+    except Exception as e:
+        logger.error(f"Error deleting longform project: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/longform/projects/<project_id>/rows', methods=['GET', 'PUT'])
+def longform_project_rows(project_id):
+    try:
+        with _longform_lock:
+            db = _load_longform_db()
+            project = next((p for p in db.get('projects', []) if p.get('id') == project_id), None)
+            if not project:
+                return jsonify({"success": False, "error": "Project not found"}), 404
+            if request.method == 'GET':
+                # Backward-compat: convert any legacy image_urls[5] to image_url
+                rows = project.get('rows', [])
+                normalized = []
+                for idx, row in enumerate(rows, start=1):
+                    if isinstance(row, dict):
+                        image_url = row.get('image_url')
+                        if not image_url:
+                            imgs = row.get('image_urls') if isinstance(row.get('image_urls'), list) else []
+                            image_url = imgs[0] if imgs else ''
+                        normalized.append({
+                            "serial_number": row.get('serial_number', idx),
+                            "audio_url": (row.get('audio_url') or '').strip(),
+                            "image_url": (image_url or '').strip(),
+                            "status": (row.get('status') or 'incomplete').strip().lower()
+                        })
+                    else:
+                        normalized.append({
+                            "serial_number": idx,
+                            "audio_url": "",
+                            "image_url": "",
+                            "status": "incomplete"
+                        })
+                return jsonify({"success": True, "rows": normalized})
+            data = request.get_json() or {}
+            rows = data.get('rows')
+            if not isinstance(rows, list) or len(rows) != 14:
+                return jsonify({"success": False, "error": "Rows must be a list of 14 row objects"}), 400
+            # Validate and normalize rows
+            normalized = []
+            for idx, row in enumerate(rows, start=1):
+                audio = (row.get('audio_url') or '').strip()
+                image_url = (row.get('image_url') or '').strip()
+                status = (row.get('status') or 'incomplete').strip().lower()
+                normalized.append({
+                    "serial_number": idx,
+                    "audio_url": audio,
+                    "image_url": image_url,
+                    "status": status if status in ["incomplete", "complete"] else "incomplete"
+                })
+            project['rows'] = normalized
+            if not _save_longform_db(db):
+                return jsonify({"success": False, "error": "Failed to save rows"}), 500
+            return jsonify({"success": True})
+    except Exception as e:
+        logger.error(f"Error in longform_project_rows: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/longform/dispatch', methods=['POST'])
+def longform_dispatch():
+    """Dispatch a single longform row: extract images from Discord link and forward to n8n longform webhook.
+    Expects JSON: { project_name, serial_number, audio_url, image_url }
+    Sends to n8n: { project_name, serial_number, audio_url, images: [5->1 reordered to 1->5] }
+    """
+    try:
+        data = request.get_json() or {}
+        project_name = (data.get('project_name') or '').strip()
+        serial_number = data.get('serial_number')
+        audio_url = (data.get('audio_url') or '').strip()
+        image_message_link = (data.get('image_url') or '').strip()
+
+        if not project_name or not serial_number or not audio_url or not image_message_link:
+            return jsonify({"success": False, "error": "Missing required fields"}), 400
+
+        # Extract images from Discord message link using existing wizard logic
+        try:
+            attachments = discord_bulk_service._extract_attachments(image_message_link)
+            images = attachments.get('images', [])
+        except Exception as e:
+            return jsonify({"success": False, "error": f"Failed to extract images: {str(e)}"}), 400
+
+        if not images or len(images) not in (4, 5):
+            return jsonify({"success": False, "error": f"Expected 5 image attachments, found {len(images) if images else 0}"}), 400
+
+        # If 4 provided for some reason, still forward but prefer 5. Ensure order 1..5 already via extractor reverse.
+        # Prepare n8n payload
+        urls = n8n_service.get_current_urls()
+        longform_url = urls.get('longform_job')
+        if not longform_url:
+            return jsonify({"success": False, "error": "Longform webhook URL not configured"}), 500
+
+        payload = {
+            'project_name': project_name,
+            'serial_number': serial_number,
+            'audio_url': audio_url,
+            'images': images
+        }
+
+        try:
+            resp = requests.post(longform_url, json=payload, timeout=n8n_service.timeout)
+            if resp.status_code != 200:
+                return jsonify({"success": False, "error": f"n8n returned {resp.status_code}"}), 502
+        except Exception as e:
+            return jsonify({"success": False, "error": f"Dispatch error: {str(e)}"}), 502
+
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error(f"Error in longform dispatch: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/longform/job-status', methods=['GET'])
+def longform_job_status():
+    try:
+        with _job_lock:
+            active = LONGFORM_JOB_STATE.get('active', False)
+            ends_at = LONGFORM_JOB_STATE.get('ends_at')
+            reason = LONGFORM_JOB_STATE.get('reason', '')
+            # Auto-expire
+            if active and ends_at:
+                try:
+                    end_dt = datetime.fromisoformat(ends_at)
+                    if datetime.utcnow() >= end_dt:
+                        LONGFORM_JOB_STATE.update({"active": False, "ends_at": None, "reason": ""})
+                        active = False
+                        ends_at = None
+                        reason = ''
+                except Exception:
+                    pass
+        return jsonify({"success": True, "active": active, "ends_at": ends_at, "reason": reason})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/longform/start-job', methods=['POST'])
+def longform_start_job():
+    try:
+        data = request.get_json() or {}
+        seconds = int(data.get('seconds', 0))
+        reason = (data.get('reason') or '').strip()
+        if seconds <= 0:
+            return jsonify({"success": False, "error": "seconds must be > 0"}), 400
+        with _job_lock:
+            # Check existing
+            if LONGFORM_JOB_STATE.get('active') and LONGFORM_JOB_STATE.get('ends_at'):
+                try:
+                    end_dt = datetime.fromisoformat(LONGFORM_JOB_STATE['ends_at'])
+                    if datetime.utcnow() < end_dt:
+                        return jsonify({"success": False, "error": "Job already in progress", "ends_at": LONGFORM_JOB_STATE['ends_at']}), 409
+                except Exception:
+                    pass
+            # Start new
+            ends_at_dt = datetime.utcnow() + timedelta(seconds=seconds)
+            LONGFORM_JOB_STATE.update({
+                "active": True,
+                "ends_at": ends_at_dt.isoformat(),
+                "reason": reason or 'longform'
+            })
+        return jsonify({"success": True, "ends_at": LONGFORM_JOB_STATE['ends_at']})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/longform/compile', methods=['POST'])
+def longform_compile():
+    """Compile job: send project_name to compile webhook."""
+    try:
+        data = request.get_json() or {}
+        project_name = (data.get('project_name') or '').strip()
+        if not project_name:
+            return jsonify({"success": False, "error": "project_name is required"}), 400
+        
+        urls = n8n_service.get_current_urls()
+        compile_url = urls.get('compile_job')
+        if not compile_url:
+            return jsonify({"success": False, "error": "Compile webhook URL not configured"}), 500
+        
+        payload = {"project_name": project_name}
+        
+        try:
+            resp = requests.post(compile_url, json=payload, timeout=n8n_service.timeout)
+            if resp.status_code != 200:
+                return jsonify({"success": False, "error": f"n8n returned {resp.status_code}"}), 502
+        except Exception as e:
+            return jsonify({"success": False, "error": f"Compile error: {str(e)}"}), 502
+        
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error(f"Error in longform compile: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
 
 if __name__ == '__main__':
     import signal

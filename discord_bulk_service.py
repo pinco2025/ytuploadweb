@@ -327,7 +327,10 @@ class DiscordBulkJobService:
             return False
     
     def _extract_attachments(self, message_link: str) -> Dict[str, List[str]]:
-        """Extract images and audios from a Discord message link (Wizard mode: 4 attachments)."""
+        """Extract images and audios from a Discord message link.
+        Supports 4 (wizard) or 5 (longform) attachments of the same type.
+        Returns arrays reversed (last attachment first), matching wizard behavior.
+        """
         try:
             # Clean the message link
             if 'discordapp.com' in message_link:
@@ -356,9 +359,9 @@ class DiscordBulkJobService:
             data = resp.json()
             attachments = data.get('attachments', [])
             
-            # Wizard mode: exactly 4 attachments (either all audio or all images)
-            if len(attachments) != 4:
-                raise Exception(f"Message must have exactly 4 attachments, found {len(attachments)}")
+            # Allow 4 (wizard) or 5 (longform) attachments
+            if len(attachments) not in (4, 5):
+                raise Exception(f"Message must have 4 or 5 attachments, found {len(attachments)}")
             
             # Separate audio and image files by extension
             audio_exts = {'.mp3', '.wav', '.m4a', '.aac', '.mp4'}
@@ -371,14 +374,14 @@ class DiscordBulkJobService:
             images = [a['url'] for a in images_full]
             
             # Determine what type of attachments we have
-            if len(audios) == 4 and len(images) == 0:
+            if len(audios) in (4, 5) and len(images) == 0:
                 # All audio files
                 pass
-            elif len(images) == 4 and len(audios) == 0:
+            elif len(images) in (4, 5) and len(audios) == 0:
                 # All image files  
                 pass
             else:
-                raise Exception(f"Message must have exactly 4 files of the same type. Found {len(audios)} audio and {len(images)} images")
+                raise Exception(f"Message must have 4 or 5 files of the same type. Found {len(audios)} audio and {len(images)} images")
             
             # Reverse both arrays for consistency (last attachment first)
             images = images[::-1]

@@ -15,6 +15,8 @@ class N8nService:
         self.config_file = "n8n_config.json"
         self.submit_webhook_url = None
         self.nocap_webhook_url = None
+        self.longform_webhook_url = None
+        self.compile_webhook_url = None
         self.timeout = 30
         self.load_config()
     
@@ -25,13 +27,18 @@ class N8nService:
                 with open(self.config_file, 'r') as f:
                     config = json.load(f)
                 
-                self.submit_webhook_url = config['webhook_urls']['submit_job']
-                self.nocap_webhook_url = config['webhook_urls']['nocap_job']
+                webhooks = config.get('webhook_urls', {})
+                self.submit_webhook_url = webhooks.get('submit_job')
+                self.nocap_webhook_url = webhooks.get('nocap_job')
+                self.longform_webhook_url = webhooks.get('longform_job')
+                self.compile_webhook_url = webhooks.get('compile_job')
                 self.timeout = config.get('timeout_seconds', 30)
                 
                 logger.info(f"Loaded n8n config: {config.get('last_updated', 'Unknown date')}")
                 logger.info(f"Submit webhook: {self.submit_webhook_url}")
                 logger.info(f"Nocap webhook: {self.nocap_webhook_url}")
+                logger.info(f"Longform webhook: {self.longform_webhook_url}")
+                logger.info(f"Compile webhook: {self.compile_webhook_url}")
             else:
                 logger.error(f"n8n config file not found: {self.config_file}")
                 raise FileNotFoundError(f"n8n config file not found: {self.config_file}")
@@ -40,13 +47,15 @@ class N8nService:
             logger.error(f"Error loading n8n config: {e}")
             raise
     
-    def update_webhook_urls(self, submit_url: str, nocap_url: str):
+    def update_webhook_urls(self, submit_url: str, nocap_url: str, longform_url: str = None, compile_url: str = None):
         """Update webhook URLs in the config file and reload settings."""
         try:
             config = {
                 "webhook_urls": {
                     "submit_job": submit_url,
-                    "nocap_job": nocap_url
+                    "nocap_job": nocap_url,
+                    **({"longform_job": longform_url} if longform_url else {}),
+                    **({"compile_job": compile_url} if compile_url else {})
                 },
                 "timeout_seconds": self.timeout,
                 "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -65,11 +74,48 @@ class N8nService:
             logger.error(f"Error updating n8n config: {e}")
             return False
     
+    def update_webhook_urls_from_base(self, base_url: str):
+        """Update all webhook URLs from a base ngrok URL. Generates all 4 URLs unanimously."""
+        try:
+            # Remove trailing slash if present
+            if base_url.endswith('/'):
+                base_url = base_url[:-1]
+            
+            # Generate all 4 webhook URLs from the base URL
+            webhook_urls = {
+                "submit_job": f"{base_url}/webhook/bgaud",
+                "nocap_job": f"{base_url}/webhook/back", 
+                "longform_job": f"{base_url}/webhook/longform",
+                "compile_job": f"{base_url}/webhook/compile"
+            }
+            
+            config = {
+                "webhook_urls": webhook_urls,
+                "timeout_seconds": self.timeout,
+                "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+            
+            with open(self.config_file, 'w') as f:
+                json.dump(config, f, indent=2)
+            
+            # Reload config
+            self.load_config()
+            
+            logger.info("All n8n webhook URLs updated unanimously from base URL")
+            logger.info(f"Generated URLs: {webhook_urls}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error updating n8n config from base URL: {e}")
+            return False
+    
     def get_current_urls(self) -> Dict[str, Optional[str]]:
         """Return the current webhook URLs as a dict."""
         return {
             "submit_job": self.submit_webhook_url,
-            "nocap_job": self.nocap_webhook_url
+            "nocap_job": self.nocap_webhook_url,
+            "longform_job": self.longform_webhook_url,
+            "compile_job": self.compile_webhook_url
         }
     
     def submit_job(self, user: str, images: List[str], audios: List[str], background_audio: str = None, aud_speed: float = 1.0) -> Tuple[bool, str, Optional[int]]:

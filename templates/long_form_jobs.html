@@ -1,0 +1,278 @@
+{% extends 'base.html' %}
+{% block title %}Long Form Jobs{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h2 class="mb-0"><i class="fas fa-list-alt me-2"></i>Long Form Jobs</h2>
+  <div>
+    <button id="createProjectBtn" class="btn btn-primary me-2"><i class="fas fa-plus me-1"></i>Create Project</button>
+    <button id="deleteProjectBtn" class="btn btn-danger" disabled><i class="fas fa-trash me-1"></i>Delete Project</button>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="row g-2 align-items-center">
+      <div class="col-auto">
+        <label for="projectSelect" class="col-form-label">Current Project</label>
+      </div>
+      <div class="col-auto">
+        <select id="projectSelect" class="form-select"></select>
+      </div>
+    </div>
+  </div>
+  <div id="projectStatus" class="card-footer text-muted"></div>
+  </div>
+
+<div class="table-responsive">
+  <table class="table table-striped align-middle notion-table" id="longformTable">
+    <thead>
+      <tr>
+        <th>Serial Number</th>
+        <th style="min-width:300px">Audio Url</th>
+        <th style="min-width:320px">Image Url</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Rows injected by JS (always 14) -->
+    </tbody>
+  </table>
+  <div class="d-flex justify-content-end gap-2 mt-3">
+    <button id="generateRemainingBtn" class="btn btn-outline-secondary" disabled>Generate Remaining</button>
+    <button id="compileBtn" class="btn btn-success" disabled>Compile</button>
+  </div>
+</div>
+<!-- Create Project Modal -->
+<div class="modal fade" id="createProjectModal" tabindex="-1" aria-labelledby="createProjectModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="createProjectModalLabel"><i class="fas fa-plus me-2"></i>Create New Project</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label for="projectNameInput" class="form-label">Project Name</label>
+          <input type="text" class="form-control" id="projectNameInput" placeholder="Enter project name" required>
+          <div class="form-text">Choose a descriptive name for your long form project.</div>
+        </div>
+        <div id="createProjectStatus"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" id="confirmCreateProject" class="btn btn-primary">Create Project</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Project Modal -->
+<div class="modal fade" id="deleteProjectModal" tabindex="-1" aria-labelledby="deleteProjectModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="deleteProjectModalLabel"><i class="fas fa-trash me-2"></i>Delete Project</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-warning">
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          <strong>Warning:</strong> This action cannot be undone. All project data will be permanently deleted.
+        </div>
+        <p>Are you sure you want to delete the project <strong id="deleteProjectName"></strong>?</p>
+        <div id="deleteProjectStatus"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" id="confirmDeleteProject" class="btn btn-danger">Delete Project</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Generate Remaining Modal -->
+<div class="modal fade" id="intervalModal" tabindex="-1" aria-labelledby="intervalModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="intervalModalLabel"><i class="fas fa-play me-2"></i>Send Remaining Rows</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label for="intervalMinutes" class="form-label">Interval between rows (minutes)</label>
+          <input type="number" class="form-control" id="intervalMinutes" min="0" step="1" value="1">
+          <div class="form-text">Set 0 to send immediately back-to-back.</div>
+        </div>
+        <div class="alert alert-info">
+          <i class="fas fa-info-circle me-2"></i>
+          This will send all incomplete rows to the longform webhook with the specified interval.
+        </div>
+        <div id="intervalStatus"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" id="confirmSendRemaining" class="btn btn-primary">Start Sending</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/longform.js') }}"></script>
+<style>
+/* Dark theme table styling for longform page */
+.notion-table thead th { 
+  font-weight: 600; 
+  color: var(--background-color); 
+  text-transform: uppercase; 
+  font-size: 12px; 
+  letter-spacing: .04em; 
+  border-bottom: 1px solid var(--border-color); 
+  background: var(--text-primary) !important;
+}
+
+.notion-table tbody td { 
+  vertical-align: middle; 
+  color: var(--text-primary) !important;
+  background: var(--card-color) !important;
+}
+
+.notion-table input.form-control-sm { 
+  background: var(--card-color) !important; 
+  border: 1px solid var(--border-color) !important; 
+  color: var(--text-primary) !important;
+}
+
+.notion-table input.form-control-sm:focus { 
+  background: var(--card-color) !important; 
+  border-color: var(--primary-color) !important; 
+  color: var(--text-primary) !important;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.1) !important;
+}
+
+.notion-table input.form-control-sm::placeholder { 
+  color: var(--text-muted) !important; 
+  opacity: 0.7;
+}
+
+.notion-table tr:hover td { 
+  background: var(--surface-color) !important; 
+}
+
+.notion-table tr:hover input.form-control-sm { 
+  background: var(--surface-color) !important; 
+  border-color: var(--accent-color) !important;
+}
+
+/* Fix form select styling */
+.form-select {
+  background: var(--card-color) !important;
+  border: 1px solid var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.form-select:focus {
+  background: var(--card-color) !important;
+  border-color: var(--primary-color) !important;
+  color: var(--text-primary) !important;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Fix card styling */
+.card {
+  background: var(--card-color) !important;
+  border: 1px solid var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.card-body {
+  background: var(--card-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.card-footer {
+  background: var(--surface-color) !important;
+  border-top: 1px solid var(--border-color) !important;
+  color: var(--text-muted) !important;
+}
+
+/* Fix button styling */
+.btn-outline-secondary {
+  background: var(--surface-color) !important;
+  border: 1px solid var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.btn-outline-secondary:hover {
+  background: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.btn-outline-secondary:disabled {
+  background: var(--surface-color) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-muted) !important;
+  opacity: 0.5;
+}
+
+/* Fix modal styling for dark theme */
+.modal-content {
+  background: var(--card-color) !important;
+  border: 1px solid var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.modal-header {
+  background: var(--text-primary) !important;
+  color: var(--background-color) !important;
+  border-bottom: 1px solid var(--border-color) !important;
+}
+
+.modal-title {
+  color: var(--background-color) !important;
+}
+
+.modal-body {
+  background: var(--card-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.modal-footer {
+  background: var(--surface-color) !important;
+  border-top: 1px solid var(--border-color) !important;
+}
+
+.btn-close {
+  color: var(--background-color) !important;
+  opacity: 0.7;
+}
+
+.btn-close:hover {
+  color: var(--background-color) !important;
+  opacity: 1;
+}
+
+/* Fix alert styling in modals */
+.alert {
+  background: var(--surface-color) !important;
+  border: 1px solid var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.alert-warning {
+  background: rgba(255, 193, 7, 0.1) !important;
+  border-color: var(--warning-color) !important;
+  color: var(--warning-color) !important;
+}
+
+.alert-info {
+  background: rgba(23, 162, 184, 0.1) !important;
+  border-color: var(--info-color) !important;
+  color: var(--info-color) !important;
+}
+</style>
+{% endblock %}
+
+
